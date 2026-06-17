@@ -36,8 +36,8 @@
           Wartungsplaenen.
         </p>
         <div class="hero-actions">
-          <a class="button primary" href="#pages">GitHub Pages einstellen</a>
-          <a class="button" href="#deployment">Produktiv starten</a>
+          <a class="button primary" href="https://wartungsseite-fdm-drucker-space-aalen-production.up.railway.app/" target="_blank">App öffnen</a>
+          <a class="button" href="#deployment">Dokumentation</a>
         </div>
       </div>
 
@@ -136,53 +136,53 @@
 
     <section id="deployment" class="section split reverse">
       <div class="code-card">
-        <span>Lokaler Start</span>
+        <span>App öffnen</span>
+        <code><a href="https://wartungsseite-fdm-drucker-space-aalen-production.up.railway.app/" target="_blank" style="color: #fff; text-decoration: none;">wartungsseite-fdm-drucker-space-aalen-production.up.railway.app</a></code>
+        <span>Lokal testen</span>
         <code>python .\run.py</code>
         <span>Windows Autostart</span>
         <code>.\scripts\install-scheduled-task.ps1</code>
-        <span>Optional HTTPS</span>
-        <code>.\scripts\start-https.ps1</code>
       </div>
       <div>
-        <p class="eyebrow">Betrieb</p>
-        <h2>Produktiv auf internem Rechner oder Server starten.</h2>
+        <p class="eyebrow">Zugang & Betrieb</p>
+        <h2>Die App laeuft jetzt live auf Railway.</h2>
         <p>
-          Die App kann auf einem Windows-PC im Netzwerk laufen. Fuer dauerhaften Betrieb
-          ist ein Scheduled Task oder ein Windows-Service sinnvoll. Fuer Netzwerkzugriff
-          sollte HTTPS ueber Zertifikat oder Reverse Proxy genutzt werden.
+          Die vollstaendige Wartungs-App ist unter dem Link oben erreichbar.
+          Du kannst dich anmelden oder registrieren (wenn ein Teamleiter-Code gesetzt ist).
+          Fuer lokale Entwicklung kann die App auch auf deinem Rechner laufen.
         </p>
       </div>
     </section>
 
     <section id="pages" class="section pages-panel">
       <div class="section-title">
-        <p class="eyebrow">GitHub Pages</p>
-        <h2>Diese Einstellungen im Screenshot waehlen.</h2>
-        <p>Fuer dein gezeigtes GitHub-Menue brauchst du keine Actions. Nimm die Branch-Verteilung.</p>
+        <p class="eyebrow">Projekt & Quellcode</p>
+        <h2>Open Source auf GitHub</h2>
+        <p>Der komplette Quellcode und die Dokumentation sind auf GitHub verfuegbar. Du kannst die App installieren, anpassen oder selbst hosten.</p>
       </div>
       <div class="pages-grid">
-        <article class="setting-card selected">
-          <span>Source</span>
-          <strong>Deploy from a branch</strong>
-        </article>
-        <article class="setting-card selected">
-          <span>Branch</span>
-          <strong>main</strong>
-        </article>
-        <article class="setting-card selected">
-          <span>Folder</span>
-          <strong>/docs</strong>
+        <article class="setting-card">
+          <span>Quellcode</span>
+          <strong><a href="https://github.com" target="_blank" style="color: #1f6b7d; text-decoration: none;">GitHub Repository</a></strong>
         </article>
         <article class="setting-card">
-          <span>Danach</span>
-          <strong>Save</strong>
+          <span>Dokumentation</span>
+          <strong>README.md</strong>
+        </article>
+        <article class="setting-card">
+          <span>Laufende App</span>
+          <strong>Railway (Cloud)</strong>
+        </article>
+        <article class="setting-card">
+          <span>Stack</span>
+          <strong>Python 3.12 · SQLite</strong>
         </article>
       </div>
       <ol class="steps">
-        <li>Bei <strong>Source</strong> die Option <strong>Deploy from a branch</strong> lassen.</li>
-        <li>Bei <strong>Branch</strong> den Branch <strong>main</strong> auswaehlen.</li>
-        <li>Beim Ordner statt <strong>/(root)</strong> den Ordner <strong>/docs</strong> auswaehlen.</li>
-        <li>Auf <strong>Save</strong> klicken und den Pages-Build abwarten.</li>
+        <li>Besuche die <strong>laufende App</strong> unter <code>wartungsseite-fdm-drucker-space-aalen-production.up.railway.app</code></li>
+        <li>Melde dich an oder registriere dich (mit Teamleiter-Code)</li>
+        <li>Verwalte Drucker, Wartungstasks und Eintraege in der Admin-Konsole</li>
+        <li>Der <strong>Quellcode</strong> auf GitHub erlaubt lokale Installation oder eigenes Hosting</li>
       </ol>
     </section>
   </main>

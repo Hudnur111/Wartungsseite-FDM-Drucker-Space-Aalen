@@ -1,12 +1,54 @@
-# GitHub Pages
+# GitHub Pages — Wartung FDM Space Portal
 
-Dieser Ordner ist die statische GitHub-Pages-Ausgabe fuer das Projekt.
+Diese Seite ist das **Release Portal und die Dokumentation** für die Wartungs-App.
 
-In GitHub Pages einstellen:
+## App-URL
 
-1. `Source`: `Deploy from a branch`
-2. `Branch`: `main`
-3. `Folder`: `/docs`
-4. `Save`
+Die vollständige Wartungs-App läuft auf Railway:
 
-Wichtig: Die eigentliche Wartungs-App nutzt Python, SQLite, Login-Sessions und Admin-Funktionen. GitHub Pages kann diese Backend-Funktionen nicht ausfuehren. Diese Seite ist daher die oeffentliche Projekt-/Startseite und Dokumentation. Die produktive App muss auf einem Server, Windows-PC oder internen Rechner laufen.
+👉 **[wartungsseite-fdm-drucker-space-aalen-production.up.railway.app](https://wartungsseite-fdm-drucker-space-aalen-production.up.railway.app/)**
+
+## Was diese Seite ist
+
+- Öffentliche Projekt-Dokumentation
+- Release-Informationen und Features
+- Betriebsanleitung für lokales Setup
+
+## Was diese Seite NICHT ist
+
+GitHub Pages ist eine **statische Website**. Die echte App braucht:
+
+- Python-Backend
+- SQLite-Datenbank
+- Login & Sessions
+- API-Endpunkte mit Schreibzugriff
+
+Diese Funktionen können nur auf einem echter Server laufen (wie Railway, Render, etc.).
+
+## Lokale Installation
+
+Wenn du die App selbst hosten oder entwickeln möchtest:
+
+```powershell
+# Repository clonen
+git clone https://github.com/your-org/wartung-fdm-space.git
+cd wartung-fdm-space
+
+# App starten
+python run.py
+```
+
+Dann öffne im Browser: `http://127.0.0.1:8080`
+
+## GitHub Pages Einstellungen
+
+Falls du dieses Portal selbst hosten möchtest:
+
+1. In GitHub: `Settings` → `Pages`
+2. `Source`: `Deploy from a branch`
+3. `Branch`: `main`
+4. `Folder`: `/docs`
+5. Speichern
+
+Dann wird diese Seite automatisch unter `https://username.github.io/repository` veröffentlicht.
+

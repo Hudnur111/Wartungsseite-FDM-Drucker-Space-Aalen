@@ -1,11 +1,54 @@
 # Wartung FDM Space
 
-Professionelle Wartungsverwaltung fuer die FDM-Space-Druckerflotte:
+Professionelle Wartungsverwaltung für die FDM-Space-Druckerflotte:
 
 - PRUSA MK3.5
 - PRUSA MINI+
 - PRUSA XL 5-Tool / 5-Nozzle
 
+## 🚀 App öffnen
+
+Die Wartungs-App läuft **live auf Railway**:
+
+👉 **[wartungsseite-fdm-drucker-space-aalen-production.up.railway.app](https://wartungsseite-fdm-drucker-space-aalen-production.up.railway.app/)**
+
+Login oder Registrierung mit Teamleiter-Code.
+
+## 📚 Dokumentation
+
+GitHub Pages Portal mit Features und Betriebsanleitung:
+
+👉 [Release Portal (GitHub Pages)](https://github.io)
+
+## Wichtig zu GitHub Pages
+
+GitHub Pages kann nur statische Dateien ausliefern. Die echte Wartungs-App aus dem Screenshot braucht Python, SQLite, Login-Sessions, CSRF-Schutz und Schreibzugriff. Deshalb läuft die komplette App nicht auf GitHub Pages, sondern auf Railway (oder lokal/auf einem Server).
+
+Der Ordner `docs/` ist ein professionelles Release-Portal mit Erklärung und Betriebsanleitung.
+
+## Start der echten App
+
+### Lokal testen
+
+```powershell
+python .\run.py
+```
+
+Danach im Browser öffnen:
+
+```text
+http://127.0.0.1:8080
+```
+
+Im lokalen Netzwerk kann die App über die IP des Rechners erreicht werden, zum Beispiel:
+
+```text
+http://192.168.188.24:8080
+```
+
+### Im Netzwerk/Cloud
+
+Die App läuft jetzt auf Railway und ist öffentlich unter der URL oben erreichbar. Für andere Hosting-Optionen siehe Betrieb weiter unten.
 
 ## Ordnerstruktur
 
@@ -38,14 +81,77 @@ wartung_app.py       Kompatibler Startpunkt
 ## Sicherheit
 
 - Login und Registrierung mit CSRF-Schutz
-- Registrierung nur mit Teamleiter-Code
-- Passwoerter werden per PBKDF2 gehasht gespeichert
-- Sessions laufen ueber HttpOnly-Cookies
+- Registrierung nur mit Teamleiter-Code (konfigurierbar)
+- Passwörter werden per PBKDF2 gehasht und gespeichert
+- Sessions laufen über HttpOnly-Cookies
 - API-Schreibaktionen brauchen einen CSRF-Header
-- Login-Fehlversuche werden begrenzt
-- Rollen: `Administrator`, `Mentor`, `Benutzer`
+- Login-Fehlversuche werden begrenzt (15 Minuten Blockade nach 5 Fehlversuchen)
+- Rollen: `Administrator`, `Mentor`, `Benutzer` mit unterschiedlichen Rechten
+- Audit-Log für alle Änderungen (wer, wann, was)
 
+### Teamleiter-Code
 
-## Daten nicht veroeffentlichen
+Ein Administrator kann den Code in der App im Admin-Bereich setzen.
 
-Die Datei `.gitignore` verhindert, dass lokale Datenbanken, Backups, Logs, `teamleiter_code.txt` und der PDF-Scan veroeffentlicht werden. Diese Dateien gehoeren nicht in ein oeffentliches Repository.
+Alternativ beim Start:
+
+```powershell
+$env:TEAMLEITER_CODE='DEIN-CODE-HIER'
+python .\run.py
+```
+
+Oder eine Datei `teamleiter_code.txt` im App-Ordner anlegen und dort nur den Code eintragen.
+
+## Betrieb
+
+### Cloud-Hosting (Railway)
+
+Die App läuft auf Railway unter:
+
+```text
+https://wartungsseite-fdm-drucker-space-aalen-production.up.railway.app
+```
+
+Automatisches Deployment bei Push auf `main` (konfiguriert via `railway.toml`).
+
+### Lokaler Betrieb auf Windows
+
+Autostart mit Windows-Bordmitteln:
+
+```powershell
+.\scripts\install-scheduled-task.ps1
+```
+
+Windows-Service mit NSSM:
+
+```powershell
+.\scripts\install-windows-service-nssm.ps1
+```
+
+### HTTPS/SSL
+
+HTTPS kann über `WARTUNG_SSL_CERT` und `WARTUNG_SSL_KEY` aktiviert werden. Für produktiven Einsatz ist ein internes CA-Zertifikat oder ein Reverse Proxy mit HTTPS empfohlen.
+
+```powershell
+$env:WARTUNG_SSL_CERT='/path/to/cert.pem'
+$env:WARTUNG_SSL_KEY='/path/to/key.pem'
+python .\run.py
+```
+
+Oder siehe Hilfsskript:
+
+```powershell
+.\scripts\start-https.ps1
+```
+
+## Daten nicht veröffentlichen
+
+Die Datei `.gitignore` verhindert, dass folgende Dateien ins öffentliche Repository gelangen:
+
+- Lokale Datenbanken (`*.db`, `*.db-shm`, `*.db-wal`)
+- Server-Logs (`wartung_server.err.log`, `wartung_server.out.log`)
+- Backups (`backups/`)
+- Teamleiter-Code (`teamleiter_code.txt`)
+- Python-Cache (`__pycache__/`)
+
+Diese Dateien gehören nicht in ein öffentliches Repo und werden automatisch ignoriert.
