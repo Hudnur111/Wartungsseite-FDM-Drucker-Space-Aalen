@@ -1,0 +1,27 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# SQLite database files
+*.db
+*.db-shm
+*.db-wal
+
+# Local app logs
+wartung_server.err.log
+wartung_server.out.log
+
+# Backups
+backups/
+
+# Team code file
+teamleiter_code.txt
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
