@@ -106,7 +106,7 @@ $env:TEAMLEITER_CODE='DEIN-CODE-HIER'
 python .\run.py
 ```
 
-Oder eine Datei `teamleiter_code.txt` im App-Ordner anlegen und dort nur den Code eintragen.
+Oder eine Datei `teamleiter_code.txt` im Projektordner anlegen und dort nur den Code eintragen.
 
 ## Betrieb
 
@@ -126,9 +126,16 @@ Für produktiven Betrieb sollte ein persistentes Volume verwendet werden. Die Ap
 WARTUNG_DATA_DIR=/data
 WARTUNG_BACKUP_DIR=/data/backups
 WARTUNG_DB_PATH=/data/wartung.db
+WARTUNG_TRUST_PROXY=1
+WARTUNG_STATE_RECENT_LOG_LIMIT=1000
+WARTUNG_STATE_RECENT_NOTE_LIMIT=500
 ```
 
 Ohne persistentes Volume kann SQLite-Datenbestand bei Neuaufbau des Containers verloren gehen.
+
+`WARTUNG_TRUST_PROXY=1` sollte nur gesetzt werden, wenn die App hinter einem vertrauenswürdigen Reverse Proxy läuft, zum Beispiel bei Railway. Für lokale oder direkt erreichbare Installationen bleibt die Einstellung ausgeschaltet, damit Login-Limits und Secure-Cookies nicht durch gefälschte Forwarded-Header beeinflusst werden.
+
+Die State-Limits begrenzen nur die Oberfläche. Exporte und Backups arbeiten weiterhin mit dem vollständigen Datenbestand.
 
 ### Lokaler Betrieb auf Windows
 

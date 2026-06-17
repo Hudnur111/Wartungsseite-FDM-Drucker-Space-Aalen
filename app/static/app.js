@@ -133,6 +133,25 @@ function showToast(message, type = "success") {
   }, 3200);
 }
 
+function fleetHealthItem(value, label) {
+  const item = document.createElement("span");
+  const count = document.createElement("strong");
+  count.textContent = value;
+  item.append(count, ` ${label}`);
+  return item;
+}
+
+function showFatalError(error) {
+  document.body.textContent = "";
+  const main = document.createElement("main");
+  main.className = "workspace";
+  const message = document.createElement("div");
+  message.className = "empty";
+  message.textContent = error.message || "Die Anwendung konnte nicht geladen werden.";
+  main.append(message);
+  document.body.append(main);
+}
+
 async function runAction(action, successMessage = "") {
   try {
     await action();
@@ -298,11 +317,11 @@ function fleetStatus() {
 
 function renderFleetHealth() {
   const counts = fleetStatus();
-  els.fleetHealth.innerHTML = `
-    <span><strong>${counts.due}</strong> fällig</span>
-    <span><strong>${counts.soon}</strong> bald</span>
-    <span><strong>${counts.ok}</strong> ok</span>
-  `;
+  els.fleetHealth.replaceChildren(
+    fleetHealthItem(counts.due, "fällig"),
+    fleetHealthItem(counts.soon, "bald"),
+    fleetHealthItem(counts.ok, "ok"),
+  );
 }
 
 function renderDevices() {
@@ -366,10 +385,10 @@ function renderStats(device, tasks) {
 }
 
 function renderTaskSelect(device, tasks) {
-  els.taskSelect.innerHTML = tasks
-    .filter(canLogTask)
-    .map((task) => `<option value="${escapeHtml(task.id)}">${escapeHtml(task.title)}</option>`)
-    .join("");
+  els.taskSelect.replaceChildren();
+  tasks.filter(canLogTask).forEach((task) => {
+    els.taskSelect.add(new Option(task.title, task.id));
+  });
 }
 
 function filterText() {
@@ -794,5 +813,5 @@ els.notificationForm.addEventListener("submit", (event) => runAction(() => saveN
 els.sendDueButton.addEventListener("click", () => runAction(sendDueNotifications, "Teams-Benachrichtigung gesendet."));
 
 loadState().catch((error) => {
-  document.body.innerHTML = `<main class="workspace"><div class="empty">${escapeHtml(error.message)}</div></main>`;
+  showFatalError(error);
 });

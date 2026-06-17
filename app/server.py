@@ -5,11 +5,10 @@ import html
 import io
 import json
 import mimetypes
-import re
 import ssl
 import urllib.error
 import urllib.request
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -32,6 +31,11 @@ from .database import (
     set_setting,
     setting,
 )
+from .maintenance import due_items as build_due_items
+from .maintenance import teams_payload as build_teams_payload
+from .reports import csv_cell as report_csv_cell
+from .reports import month_filter as report_month_filter
+from .reports import pdf_bytes as build_pdf_bytes
 from .security import (
     allowed_role,
     can_log_level,
@@ -49,9 +53,10 @@ from .security import (
     verify_password,
     verify_secret,
 )
-
-
-ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,63}$")
+from .validators import optional_int as parse_optional_int
+from .validators import task_applies_to_device as task_matches_device
+from .validators import valid_date as parse_valid_date
+from .validators import valid_id as normalize_valid_id
 
 
 def render_template(name: str, context: dict[str, str]) -> str:
@@ -417,8 +422,73 @@ class WartungHandler(BaseHTTPRequestHandler):
                 "csrfToken": user["csrf_token"],
                 "devices": rows(conn, "SELECT * FROM devices WHERE active = 1 ORDER BY sort_order, name"),
                 "tasks": rows(conn, "SELECT * FROM tasks WHERE active = 1 ORDER BY sort_order, title"),
-                "logs": rows(conn, "SELECT * FROM logs ORDER BY id DESC"),
-                "notes": rows(conn, "SELECT * FROM notes ORDER BY id DESC"),
+                "logs": rows(
+                    conn,
+                    """
+                    WITH latest AS (
+                        SELECT current.id
+                        FROM logs current
+                        WHERE NOT EXISTS (
+                            SELECT 1
+                            FROM logs newer
+                            WHERE newer.device_id = current.device_id
+                              AND newer.task_id = current.task_id
+                              AND (
+                                  newer.done_on > current.done_on
+                                  OR (newer.done_on = current.done_on AND newer.id > current.id)
+                              )
+                        )
+                    ),
+                    recent AS (
+                        SELECT id
+                        FROM logs
+                        ORDER BY id DESC
+                        LIMIT ?
+                    )
+                    SELECT *
+                    FROM logs
+                    WHERE id IN (
+                        SELECT id FROM latest
+                        UNION
+                        SELECT id FROM recent
+                    )
+                    ORDER BY id DESC
+                    """,
+                    (config.STATE_RECENT_LOG_LIMIT,),
+                ),
+                "notes": rows(
+                    conn,
+                    """
+                    WITH latest AS (
+                        SELECT current.id
+                        FROM notes current
+                        WHERE NOT EXISTS (
+                            SELECT 1
+                            FROM notes newer
+                            WHERE newer.device_id = current.device_id
+                              AND (
+                                  newer.note_date > current.note_date
+                                  OR (newer.note_date = current.note_date AND newer.id > current.id)
+                              )
+                        )
+                    ),
+                    recent AS (
+                        SELECT id
+                        FROM notes
+                        ORDER BY id DESC
+                        LIMIT ?
+                    )
+                    SELECT *
+                    FROM notes
+                    WHERE id IN (
+                        SELECT id FROM latest
+                        UNION
+                        SELECT id FROM recent
+                    )
+                    ORDER BY id DESC
+                    """,
+                    (config.STATE_RECENT_NOTE_LIMIT,),
+                ),
                 "xlTools": rows(conn, "SELECT * FROM xl_tools ORDER BY device_id, tool_number"),
             }
 
@@ -437,92 +507,13 @@ class WartungHandler(BaseHTTPRequestHandler):
             }
 
     def month_filter(self, month: str) -> str:
-        month = month.strip()
-        if not month:
-            return ""
-        if not re.fullmatch(r"\d{4}-\d{2}", month):
-            raise ValueError("Monat muss im Format JJJJ-MM angegeben werden.")
-        return month
+        return report_month_filter(month)
 
     def due_items(self, conn) -> list[dict]:
-        devices = rows(conn, "SELECT * FROM devices WHERE active = 1 ORDER BY sort_order, name")
-        tasks = rows(conn, "SELECT * FROM tasks WHERE active = 1 ORDER BY sort_order, title")
-        logs = rows(conn, "SELECT * FROM logs ORDER BY id DESC")
-        latest = {}
-        for log in logs:
-            key = (log["device_id"], log["task_id"])
-            current = latest.get(key)
-            if not current or (log["done_on"], log["id"]) > (current["done_on"], current["id"]):
-                latest[key] = log
-        today = date.today()
-        items = []
-        for device in devices:
-            current_hours = device.get("current_print_hours")
-            if current_hours is None:
-                device_logs = [item["print_hours"] for item in logs if item["device_id"] == device["id"] and item["print_hours"] is not None]
-                current_hours = max(device_logs) if device_logs else None
-            for task in tasks:
-                if task["applies_to"] not in {"all", device["kind"]}:
-                    continue
-                if not task["cadence_days"] and not task["cadence_hours"]:
-                    continue
-                log = latest.get((device["id"], task["id"]))
-                status = None
-                detail = ""
-                if not log:
-                    status = "open"
-                    detail = "kein Eintrag"
-                elif task["cadence_hours"] and log["print_hours"] is not None and current_hours is not None:
-                    age = max(0, int(current_hours) - int(log["print_hours"]))
-                    remaining = int(task["cadence_hours"]) - age
-                    if age > int(task["cadence_hours"]):
-                        status = "due"
-                    elif remaining <= 25:
-                        status = "due-soon"
-                    detail = f"{age} h seit letzter Wartung"
-                elif task["cadence_hours"] and not task["cadence_days"]:
-                    status = "open"
-                    detail = "Druckstunden fehlen"
-                else:
-                    try:
-                        done = datetime.strptime(log["done_on"], "%Y-%m-%d").date()
-                    except (TypeError, ValueError):
-                        status = "open"
-                        detail = "Datum prüfen"
-                    else:
-                        age = (today - done).days
-                        remaining = int(task["cadence_days"]) - age
-                        if age > int(task["cadence_days"]):
-                            status = "due"
-                        elif remaining <= 7:
-                            status = "due-soon"
-                        detail = f"{age} Tage seit letzter Wartung"
-                if status in {"open", "due", "due-soon"}:
-                    items.append(
-                        {
-                            "device_id": device["id"],
-                            "device": device["name"],
-                            "task_id": task["id"],
-                            "task": task["title"],
-                            "level": task["level"],
-                            "status": status,
-                            "detail": detail,
-                            "last_done": log["done_on"] if log else "",
-                        }
-                    )
-        order = {"due": 0, "open": 1, "due-soon": 2}
-        return sorted(items, key=lambda item: (order.get(item["status"], 9), item["device"], item["task"]))
+        return build_due_items(conn)
 
     def teams_payload(self, items: list[dict]) -> dict:
-        if not items:
-            return {"text": "Wartung FDM Space: Aktuell sind keine Wartungen fällig."}
-        lines = ["Wartung FDM Space: Fällige und bald fällige Wartungen", ""]
-        for item in items[:25]:
-            label = {"due": "FÄLLIG", "open": "OFFEN", "due-soon": "BALD"}[item["status"]]
-            lines.append(f"- {label}: {item['device']} - {item['task']} ({item['detail']})")
-        if len(items) > 25:
-            lines.append(f"- plus {len(items) - 25} weitere Einträge")
-        return {"text": "\n".join(lines)}
+        return build_teams_payload(items)
 
     def post_teams_webhook(self, webhook_url: str, payload: dict) -> None:
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -535,36 +526,7 @@ class WartungHandler(BaseHTTPRequestHandler):
             raise ValueError(f"Teams Webhook konnte nicht erreicht werden: {exc.reason}") from exc
 
     def pdf_bytes(self, lines: list[str]) -> bytes:
-        def pdf_text(value: str) -> str:
-            return str(value).replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
-
-        pages = [lines[index:index + 42] for index in range(0, max(1, len(lines)), 42)]
-        objects = ["<< /Type /Catalog /Pages 2 0 R >>", "", "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"]
-        page_refs = []
-        for page_lines in pages:
-            content = ["BT", "/F1 11 Tf", "50 790 Td", "14 TL"]
-            for line in page_lines:
-                content.append(f"({pdf_text(line)}) Tj")
-                content.append("T*")
-            content.append("ET")
-            stream = "\n".join(content).encode("latin-1", "replace")
-            content_obj_num = len(objects) + 1
-            objects.append(f"<< /Length {len(stream)} >>\nstream\n{stream.decode('latin-1')}\nendstream")
-            page_obj_num = len(objects) + 1
-            objects.append(f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents {content_obj_num} 0 R >>")
-            page_refs.append(f"{page_obj_num} 0 R")
-        objects[1] = f"<< /Type /Pages /Kids [{' '.join(page_refs)}] /Count {len(page_refs)} >>"
-        output = bytearray(b"%PDF-1.4\n")
-        offsets = [0]
-        for number, obj in enumerate(objects, start=1):
-            offsets.append(len(output))
-            output.extend(f"{number} 0 obj\n{obj}\nendobj\n".encode("latin-1", "replace"))
-        xref = len(output)
-        output.extend(f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode("ascii"))
-        for offset in offsets[1:]:
-            output.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
-        output.extend(f"trailer << /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode("ascii"))
-        return bytes(output)
+        return build_pdf_bytes(lines)
 
     def login_limited(self, conn, email: str) -> bool:
         cutoff = (datetime.now(timezone.utc) - timedelta(minutes=15)).replace(microsecond=0).isoformat()
@@ -576,19 +538,10 @@ class WartungHandler(BaseHTTPRequestHandler):
         return count >= 5
 
     def valid_date(self, value: str, label: str, allow_future: bool = False) -> str:
-        try:
-            parsed = datetime.strptime(value, "%Y-%m-%d").date()
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"{label} muss ein gültiges Datum sein.") from exc
-        if not allow_future and parsed > date.today():
-            raise ValueError(f"{label} darf nicht in der Zukunft liegen.")
-        return parsed.isoformat()
+        return parse_valid_date(value, label, allow_future)
 
     def valid_id(self, value: str, label: str) -> str:
-        normalized = value.strip().lower()
-        if not ID_RE.fullmatch(normalized):
-            raise ValueError(f"{label} darf nur Kleinbuchstaben, Zahlen, Bindestriche und Unterstriche enthalten.")
-        return normalized
+        return normalize_valid_id(value, label)
 
     def active_device(self, conn, device_id: str) -> dict:
         device = row(conn, "SELECT * FROM devices WHERE id = ? AND active = 1", (device_id,))
@@ -603,7 +556,7 @@ class WartungHandler(BaseHTTPRequestHandler):
         return task
 
     def task_applies_to_device(self, task: dict, device: dict) -> bool:
-        return task["applies_to"] == "all" or task["applies_to"] == device["kind"]
+        return task_matches_device(task, device)
 
     def login(self) -> None:
         form = self.read_form()
@@ -1046,21 +999,10 @@ class WartungHandler(BaseHTTPRequestHandler):
         )
 
     def csv_cell(self, value):
-        if value is None:
-            return ""
-        text = str(value)
-        return "'" + text if text[:1] in {"=", "+", "-", "@", "\t", "\r"} else text
+        return report_csv_cell(value)
 
     def optional_int(self, value, label: str) -> int | None:
-        if value in (None, ""):
-            return None
-        try:
-            parsed = int(value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"{label} muss eine ganze Zahl sein.") from exc
-        if parsed < 0:
-            raise ValueError(f"{label} darf nicht negativ sein.")
-        return parsed
+        return parse_optional_int(value, label)
 
 
 def main() -> None:

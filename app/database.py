@@ -179,6 +179,21 @@ def init_db() -> None:
                 created_by TEXT NOT NULL,
                 created_at TEXT NOT NULL
             );
+
+            CREATE INDEX IF NOT EXISTS idx_sessions_expires_at
+                ON sessions(expires_at);
+            CREATE INDEX IF NOT EXISTS idx_login_attempts_scope
+                ON login_attempts(email, ip_address, success, created_at);
+            CREATE INDEX IF NOT EXISTS idx_logs_device_task_date
+                ON logs(device_id, task_id, done_on, id);
+            CREATE INDEX IF NOT EXISTS idx_logs_device_recent
+                ON logs(device_id, id);
+            CREATE INDEX IF NOT EXISTS idx_notes_device_recent
+                ON notes(device_id, note_date, id);
+            CREATE INDEX IF NOT EXISTS idx_audit_log_recent
+                ON audit_log(created_at, id);
+            CREATE INDEX IF NOT EXISTS idx_backup_log_recent
+                ON backup_log(created_at, id);
             """
         )
         ensure_column(conn, "users", "is_active", "INTEGER NOT NULL DEFAULT 1")
