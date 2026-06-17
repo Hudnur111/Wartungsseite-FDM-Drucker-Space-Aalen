@@ -288,6 +288,15 @@ class WartungHandler(BaseHTTPRequestHandler):
         if path == "/healthz":
             self.send_json({"ok": True, "service": "wartung-fdm-space"})
             return
+        if path == "/auth/login":
+            self.redirect("/login")
+            return
+        if path == "/auth/register":
+            self.redirect("/register")
+            return
+        if path == "/auth/forgot-password":
+            self.redirect("/forgot-password")
+            return
         if path in {"/login", "/register", "/forgot-password"}:
             if self.current_user():
                 self.redirect("/")
@@ -708,6 +717,7 @@ class WartungHandler(BaseHTTPRequestHandler):
             return
         email = normalize_email(form.get("email", ""))
         message = "Wenn diese E-Mail registriert ist, wurde ein Link zum Zurücksetzen versendet."
+        delivery_message = ""
         if "@" not in email:
             self.auth_page("forgot", message=message)
             return
@@ -729,8 +739,12 @@ class WartungHandler(BaseHTTPRequestHandler):
                 except (OSError, smtplib.SMTPException, ValueError) as exc:
                     delivery = "failed"
                     print(f"Passwort-Reset-Mail konnte nicht versendet werden: {exc}")
+                if delivery == "dev_outbox":
+                    delivery_message = "Lokaler Entwicklungsmodus: Der Reset-Link wurde in data/password_reset_outbox/ gespeichert."
+                elif delivery == "not_configured":
+                    delivery_message = "Mailversand ist noch nicht konfiguriert. Bitte SMTP-Variablen setzen."
                 audit(conn, None, "request", "password_reset", str(user["id"]), {"delivery": delivery}, self.client_ip())
-        self.auth_page("forgot", message=message)
+        self.auth_page("forgot", message=delivery_message or message)
 
     def reset_password(self) -> None:
         form = self.read_form()

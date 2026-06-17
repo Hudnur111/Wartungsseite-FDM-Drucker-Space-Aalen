@@ -51,6 +51,9 @@ class AppE2ETests(unittest.TestCase):
                 "WARTUNG_STATE_RECENT_LOG_LIMIT": "100",
                 "WARTUNG_STATE_RECENT_NOTE_LIMIT": "100",
                 "WARTUNG_RESET_DEV_OUTBOX": "1",
+                "WARTUNG_BOOTSTRAP_ADMIN_EMAIL": "bootstrap@example.test",
+                "WARTUNG_BOOTSTRAP_ADMIN_NAME": "Bootstrap Admin",
+                "WARTUNG_BOOTSTRAP_ADMIN_PASSWORD": "Bootstrap123",
                 "TEAMLEITER_CODE": "test-team-code",
             }
         )
@@ -129,6 +132,16 @@ class AppE2ETests(unittest.TestCase):
         self.assertEqual(styles.headers["Cache-Control"], "public, max-age=3600")
         self.assertEqual(styles.headers["X-Content-Type-Options"], "nosniff")
 
+    def test_auth_get_endpoints_redirect_to_pages(self) -> None:
+        login_page = self.request("/auth/login").read().decode("utf-8")
+        self.assertIn("Anmelden", login_page)
+        register_page = self.request("/auth/register").read().decode("utf-8")
+        self.assertIn("Registrieren", register_page)
+
+    def test_bootstrap_admin_can_login(self) -> None:
+        csrf = self.login("bootstrap@example.test", "Bootstrap123")
+        self.assertTrue(csrf)
+
     def test_login_create_log_backup_and_pdf_export(self) -> None:
         csrf = self.login()
         payload = {
@@ -174,7 +187,7 @@ class AppE2ETests(unittest.TestCase):
         csrf = self.auth_csrf("/forgot-password")
         body = urllib.parse.urlencode({"email": "admin@example.test", "csrf_token": csrf}).encode()
         page = self.request("/auth/forgot-password", body, {"Content-Type": "application/x-www-form-urlencoded"}).read().decode("utf-8")
-        self.assertIn("Wenn diese E-Mail registriert ist", page)
+        self.assertIn("password_reset_outbox", page)
 
         outbox = self.root / "data" / "password_reset_outbox"
         files = sorted(outbox.glob("password-reset-*.txt"))

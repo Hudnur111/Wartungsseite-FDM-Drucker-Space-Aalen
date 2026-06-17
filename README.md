@@ -125,6 +125,16 @@ Für lokale Reparatur oder eine Server-Konsole kann ein Administrator reaktivier
 
 Das Skript setzt die Rolle auf `Administrator`, aktiviert den Benutzer, löscht alte Sitzungen und entfernt Login-Sperren für diese E-Mail-Adresse.
 
+Auf Railway kann der Administrator beim Start über Umgebungsvariablen repariert werden:
+
+```text
+WARTUNG_BOOTSTRAP_ADMIN_EMAIL=admin@example.org
+WARTUNG_BOOTSTRAP_ADMIN_NAME=Admin
+WARTUNG_BOOTSTRAP_ADMIN_PASSWORD=NEUES-SICHERES-PASSWORT
+```
+
+Danach redeployen, einmal anmelden und die Bootstrap-Variablen wieder aus Railway entfernen. Solange die Variablen gesetzt sind, wird das Admin-Passwort bei jedem Start erneut auf diesen Wert gesetzt.
+
 ## Betrieb
 
 ### Cloud-Hosting (Railway)

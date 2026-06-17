@@ -6,7 +6,7 @@ import sqlite3
 from pathlib import Path
 
 from . import config, defaults
-from .security import now_iso
+from .security import hash_password, normalize_email, now_iso
 
 
 class AppConnection(sqlite3.Connection):
@@ -304,6 +304,56 @@ def init_db() -> None:
             set_setting(conn, "seed_version", "2")
         conn.execute("DELETE FROM sessions WHERE expires_at <= ? OR csrf_token = ''", (now_iso(),))
         conn.execute("DELETE FROM password_reset_tokens WHERE expires_at <= ? OR used_at IS NOT NULL", (now_iso(),))
+        bootstrap_admin(conn)
+
+
+def bootstrap_admin(conn: sqlite3.Connection) -> None:
+    email = normalize_email(config.BOOTSTRAP_ADMIN_EMAIL)
+    password = config.BOOTSTRAP_ADMIN_PASSWORD
+    display_name = config.BOOTSTRAP_ADMIN_NAME or "Administrator"
+    if not email and not password:
+        return
+    if "@" not in email or email.startswith("@") or email.endswith("@"):
+        raise ValueError("WARTUNG_BOOTSTRAP_ADMIN_EMAIL ist keine gültige E-Mail-Adresse.")
+    if len(display_name.strip()) < 2:
+        raise ValueError("WARTUNG_BOOTSTRAP_ADMIN_NAME muss mindestens 2 Zeichen haben.")
+    if len(password) < 8:
+        raise ValueError("WARTUNG_BOOTSTRAP_ADMIN_PASSWORD muss mindestens 8 Zeichen haben.")
+
+    existing = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+    password_hash = hash_password(password)
+    if existing:
+        user_id = int(existing["id"])
+        conn.execute(
+            """
+            UPDATE users
+            SET display_name = ?, password_hash = ?, role = ?, is_active = 1
+            WHERE id = ?
+            """,
+            (display_name.strip(), password_hash, config.ADMIN_ROLE, user_id),
+        )
+        action = "reset"
+    else:
+        cursor = conn.execute(
+            """
+            INSERT INTO users (email, display_name, password_hash, role, is_active, created_at)
+            VALUES (?, ?, ?, ?, 1, ?)
+            """,
+            (email, display_name.strip(), password_hash, config.ADMIN_ROLE, now_iso()),
+        )
+        user_id = int(cursor.lastrowid)
+        action = "create"
+
+    conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+    conn.execute("DELETE FROM login_attempts WHERE email = ?", (email,))
+    audit(
+        conn,
+        None,
+        action,
+        "bootstrap_admin",
+        str(user_id),
+        {"email": email, "sessions_cleared": True, "login_attempts_cleared": True},
+    )
 
 
 def setting(conn: sqlite3.Connection, key: str, default: str = "") -> str:
