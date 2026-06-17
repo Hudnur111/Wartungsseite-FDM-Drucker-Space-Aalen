@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}}</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body class="auth-body">
+  <main class="auth-shell">
+    <section class="auth-brand">
+      <p class="eyebrow">SFZ / FDM Space</p>
+      <h1>Wartung</h1>
+      <p class="auth-copy">Professionelle Wartungsverwaltung fuer Drucker, Druckstunden, Vermerke und Historie.</p>
+    </section>
+
+    <section class="auth-card">
+      <div class="auth-tabs">
+        <a class="{{LOGIN_ACTIVE}}" href="/login">Anmelden</a>
+        <a class="{{REGISTER_ACTIVE}}" href="/register">Registrieren</a>
+      </div>
+      {{MESSAGE_BLOCK}}
+
+      <form class="auth-form {{LOGIN_ACTIVE}}" method="post" action="/auth/login">
+        <input type="hidden" name="csrf_token" value="{{CSRF_TOKEN}}">
+        <label>E-Mail<input name="email" type="email" autocomplete="email" required></label>
+        <label>Passwort<input name="password" type="password" autocomplete="current-password" required></label>
+        <button class="button primary" type="submit">Anmelden</button>
+      </form>
+
+      <form class="auth-form {{REGISTER_ACTIVE}}" method="post" action="/auth/register">
+        <input type="hidden" name="csrf_token" value="{{CSRF_TOKEN}}">
+        <label>Name<input name="display_name" autocomplete="name" required minlength="2"></label>
+        <label>E-Mail<input name="email" type="email" autocomplete="email" required></label>
+        <label>Passwort<input name="password" type="password" autocomplete="new-password" required minlength="8"></label>
+        <label>Teamleiter-Code<input name="team_code" type="password" autocomplete="one-time-code" required></label>
+        <p class="auth-hint">{{REGISTER_HINT}}</p>
+        <button class="button primary" type="submit">Konto erstellen</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>
+

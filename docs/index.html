@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wartung FDM Space</title>
+  <meta name="description" content="Professionelle Wartungsverwaltung fuer PRUSA MK3.5, MINI+ und XL 5-Tool Drucker im FDM Space.">
+  <meta name="theme-color" content="#1f6b7d">
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="Wartung FDM Space">
+      <span class="brand-mark">FDM</span>
+      <span>
+        <strong>Wartung FDM Space</strong>
+        <small>Release Portal</small>
+      </span>
+    </a>
+    <nav aria-label="Seitennavigation">
+      <a href="#system">System</a>
+      <a href="#security">Sicherheit</a>
+      <a href="#deployment">Betrieb</a>
+      <a href="#pages">GitHub Pages</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">PRUSA MK3.5 / MINI+ / XL 5-Tool</p>
+        <h1>Wartung, Historie und Verantwortung an einem Ort.</h1>
+        <p>
+          Eine interne Wartungs-App fuer den FDM Space mit Rollen, Audit-Log,
+          Druckstunden, XL-Toolhead-Dokumentation und administrierbaren
+          Wartungsplaenen.
+        </p>
+        <div class="hero-actions">
+          <a class="button primary" href="#pages">GitHub Pages einstellen</a>
+          <a class="button" href="#deployment">Produktiv starten</a>
+        </div>
+      </div>
+
+      <section class="product-frame" aria-label="Dashboard Vorschau">
+        <div class="product-toolbar">
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <strong>Wartung Dashboard</strong>
+        </div>
+        <div class="product-layout">
+          <aside>
+            <span class="active">PRUSA MK3.5</span>
+            <span>MINI+ Alpha</span>
+            <span>MINI+ Beta</span>
+            <span>PRUSA XL 5-Tool</span>
+          </aside>
+          <div class="product-main">
+            <div class="product-head">
+              <div>
+                <small>Ausgewaehlt</small>
+                <strong>PRUSA XL 5-Tool</strong>
+              </div>
+              <em>Administrator</em>
+            </div>
+            <div class="metric-row">
+              <article><span>Faellig</span><strong>7</strong></article>
+              <article><span>Bald</span><strong>0</strong></article>
+              <article><span>Ok</span><strong>0</strong></article>
+            </div>
+            <div class="task-list">
+              <div><strong>XL Linear-Rails</strong><span>200-300 h</span><b>offen</b></div>
+              <div><strong>Tool 1 Nozzle</strong><span>b.B.</span><b class="neutral">bei Bedarf</b></div>
+              <div><strong>Firmware pruefen</strong><span>monatlich</span><b>offen</b></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <section class="trust-strip" aria-label="Kernfunktionen">
+      <div><strong>3 Rollen</strong><span>Administrator, Mentor, Benutzer</span></div>
+      <div><strong>7 Drucker</strong><span>MK3.5, MINI+, XL 5-Tool</span></div>
+      <div><strong>27 Punkte</strong><span>Wartungsplan als Startbestand</span></div>
+      <div><strong>0 Papier</strong><span>Eintraege digital nachvollziehbar</span></div>
+    </section>
+
+    <section id="system" class="section">
+      <div class="section-title">
+        <p class="eyebrow">System</p>
+        <h2>Gebaut fuer wiederkehrende Wartung im Alltag.</h2>
+        <p>Die produktive App trennt Bedienung, Administration und Betrieb sauber voneinander.</p>
+      </div>
+      <div class="cards">
+        <article>
+          <span class="card-kicker">01</span>
+          <h3>Wartungsdashboard</h3>
+          <p>Faellige Punkte, Druckstunden, Historie und Vermerke je Drucker schnell erfassbar.</p>
+        </article>
+        <article>
+          <span class="card-kicker">02</span>
+          <h3>XL 5-Tool Dokumentation</h3>
+          <p>Tool 1-5 mit Nozzle-Typ, Material, letztem Wechsel und Auffaelligkeiten.</p>
+        </article>
+        <article>
+          <span class="card-kicker">03</span>
+          <h3>Admin-Konsole</h3>
+          <p>Benutzer, Rollen, Drucker, Wartungspunkte, Backups und Teamleiter-Code verwalten.</p>
+        </article>
+        <article>
+          <span class="card-kicker">04</span>
+          <h3>Export und Nachweis</h3>
+          <p>CSV-Export, Audit-Log und Backup-Historie fuer transparente Dokumentation.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="security" class="section split">
+      <div>
+        <p class="eyebrow">Sicherheit</p>
+        <h2>Die oeffentliche Seite ist statisch. Die App bleibt intern.</h2>
+        <p>
+          GitHub Pages veroeffentlicht nur diese Informationsseite. Die echte Wartungs-App
+          laeuft intern, damit Login, SQLite-Datenbank, Sessions und Admin-Funktionen
+          nicht oeffentlich im Browser liegen.
+        </p>
+      </div>
+      <div class="check-list">
+        <span>PBKDF2 Passwort-Hashing</span>
+        <span>CSRF-Schutz fuer Schreibaktionen</span>
+        <span>Login-Rate-Limit</span>
+        <span>HttpOnly Sessions</span>
+        <span>Audit-Log fuer Aenderungen</span>
+      </div>
+    </section>
+
+    <section id="deployment" class="section split reverse">
+      <div class="code-card">
+        <span>Lokaler Start</span>
+        <code>python .\run.py</code>
+        <span>Windows Autostart</span>
+        <code>.\scripts\install-scheduled-task.ps1</code>
+        <span>Optional HTTPS</span>
+        <code>.\scripts\start-https.ps1</code>
+      </div>
+      <div>
+        <p class="eyebrow">Betrieb</p>
+        <h2>Produktiv auf internem Rechner oder Server starten.</h2>
+        <p>
+          Die App kann auf einem Windows-PC im Netzwerk laufen. Fuer dauerhaften Betrieb
+          ist ein Scheduled Task oder ein Windows-Service sinnvoll. Fuer Netzwerkzugriff
+          sollte HTTPS ueber Zertifikat oder Reverse Proxy genutzt werden.
+        </p>
+      </div>
+    </section>
+
+    <section id="pages" class="section pages-panel">
+      <div class="section-title">
+        <p class="eyebrow">GitHub Pages</p>
+        <h2>Diese Einstellungen im Screenshot waehlen.</h2>
+        <p>Fuer dein gezeigtes GitHub-Menue brauchst du keine Actions. Nimm die Branch-Verteilung.</p>
+      </div>
+      <div class="pages-grid">
+        <article class="setting-card selected">
+          <span>Source</span>
+          <strong>Deploy from a branch</strong>
+        </article>
+        <article class="setting-card selected">
+          <span>Branch</span>
+          <strong>main</strong>
+        </article>
+        <article class="setting-card selected">
+          <span>Folder</span>
+          <strong>/docs</strong>
+        </article>
+        <article class="setting-card">
+          <span>Danach</span>
+          <strong>Save</strong>
+        </article>
+      </div>
+      <ol class="steps">
+        <li>Bei <strong>Source</strong> die Option <strong>Deploy from a branch</strong> lassen.</li>
+        <li>Bei <strong>Branch</strong> den Branch <strong>main</strong> auswaehlen.</li>
+        <li>Beim Ordner statt <strong>/(root)</strong> den Ordner <strong>/docs</strong> auswaehlen.</li>
+        <li>Auf <strong>Save</strong> klicken und den Pages-Build abwarten.</li>
+      </ol>
+    </section>
+  </main>
+
+  <footer>
+    <span>Wartung FDM Space</span>
+    <span>Static release page from /docs</span>
+  </footer>
+
+  <script src="assets/site.js"></script>
+</body>
+</html>
