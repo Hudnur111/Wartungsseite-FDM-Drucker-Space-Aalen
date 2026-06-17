@@ -15,8 +15,8 @@ DB_PATH = DATA_DIR / "wartung.db"
 LEGACY_DB_PATH = ROOT_DIR / "wartung.db"
 TEAM_CODE_FILE = ROOT_DIR / "teamleiter_code.txt"
 
-HOST = os.environ.get("WARTUNG_HOST", "0.0.0.0")
-PORT = int(os.environ.get("WARTUNG_PORT", "8080"))
+HOST = os.environ.get("WARTUNG_HOST", os.environ.get("HOST", "0.0.0.0"))
+PORT = int(os.environ.get("WARTUNG_PORT", os.environ.get("PORT", "8080")))
 SSL_CERT = os.environ.get("WARTUNG_SSL_CERT", "").strip()
 SSL_KEY = os.environ.get("WARTUNG_SSL_KEY", "").strip()
 
