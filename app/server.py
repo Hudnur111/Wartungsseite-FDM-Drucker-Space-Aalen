@@ -5,10 +5,12 @@ import html
 import io
 import json
 import mimetypes
+import smtplib
 import ssl
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
+from email.message import EmailMessage
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -253,19 +255,28 @@ class WartungHandler(BaseHTTPRequestHandler):
             conn.execute("UPDATE users SET last_login_at = ? WHERE id = ?", (now_iso(), user_id))
         return token
 
-    def auth_page(self, mode: str, message: str = "", error: str = "") -> None:
+    def auth_page(self, mode: str, message: str = "", error: str = "", reset_token: str = "") -> None:
         csrf = new_token()
         with connect() as conn:
             hint = "Registrierung ist freigeschaltet." if team_code_is_configured(conn) else "Registrierung ist gesperrt, bis ein Teamleiter-Code gesetzt wurde."
+        titles = {
+            "login": "Anmelden - Wartung FDM Space",
+            "register": "Registrieren - Wartung FDM Space",
+            "forgot": "Passwort vergessen - Wartung FDM Space",
+            "reset": "Passwort neu setzen - Wartung FDM Space",
+        }
         body = render_template(
             "auth.html",
             {
-                "TITLE": "Registrieren - Wartung FDM Space" if mode == "register" else "Anmelden - Wartung FDM Space",
+                "TITLE": titles.get(mode, titles["login"]),
                 "LOGIN_ACTIVE": "active" if mode == "login" else "",
                 "REGISTER_ACTIVE": "active" if mode == "register" else "",
+                "FORGOT_ACTIVE": "active" if mode == "forgot" else "",
+                "RESET_ACTIVE": "active" if mode == "reset" else "",
                 "MESSAGE_BLOCK": html_message(message, "success") + html_message(error, "error"),
                 "CSRF_TOKEN": html.escape(csrf),
                 "REGISTER_HINT": html.escape(hint),
+                "RESET_TOKEN": html.escape(reset_token),
             },
         )
         self.send_text(body, "text/html; charset=utf-8", headers={"Set-Cookie": self.auth_csrf_cookie(csrf)})
@@ -277,11 +288,22 @@ class WartungHandler(BaseHTTPRequestHandler):
         if path == "/healthz":
             self.send_json({"ok": True, "service": "wartung-fdm-space"})
             return
-        if path in {"/login", "/register"}:
+        if path in {"/login", "/register", "/forgot-password"}:
             if self.current_user():
                 self.redirect("/")
                 return
-            self.auth_page("register" if path == "/register" else "login", query.get("message", [""])[0], query.get("error", [""])[0])
+            mode = {"login": "login", "register": "register", "forgot-password": "forgot"}[path.strip("/")]
+            self.auth_page(mode, query.get("message", [""])[0], query.get("error", [""])[0])
+            return
+        if path == "/reset-password":
+            if self.current_user():
+                self.redirect("/")
+                return
+            token = query.get("token", [""])[0]
+            if not self.password_reset_user(token):
+                self.auth_page("forgot", error="Der Link ist ungültig oder abgelaufen. Bitte fordere einen neuen Link an.")
+                return
+            self.auth_page("reset", reset_token=token)
             return
         if path == "/":
             if not self.require_user():
@@ -348,6 +370,12 @@ class WartungHandler(BaseHTTPRequestHandler):
                 return
             if path == "/auth/register":
                 self.register()
+                return
+            if path == "/auth/forgot-password":
+                self.request_password_reset()
+                return
+            if path == "/auth/reset-password":
+                self.reset_password()
                 return
             if path == "/auth/logout":
                 user = self.require_user(api=True)
@@ -553,6 +581,79 @@ class WartungHandler(BaseHTTPRequestHandler):
         ).fetchone()[0]
         return count >= 5
 
+    def public_base_url(self) -> str:
+        if config.PUBLIC_URL:
+            return config.PUBLIC_URL
+        scheme = "https" if self.is_secure_request() else "http"
+        host = self.headers.get("Host", f"127.0.0.1:{config.PORT}").strip()
+        return f"{scheme}://{host}".rstrip("/")
+
+    def password_reset_limited(self, conn, user_id: int) -> bool:
+        now = now_iso()
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=1)).replace(microsecond=0).isoformat()
+        conn.execute("DELETE FROM password_reset_tokens WHERE expires_at <= ? OR used_at IS NOT NULL", (now,))
+        ip_count = conn.execute(
+            "SELECT COUNT(*) FROM password_reset_tokens WHERE request_ip = ? AND created_at >= ?",
+            (self.client_ip(), cutoff),
+        ).fetchone()[0]
+        user_count = conn.execute(
+            "SELECT COUNT(*) FROM password_reset_tokens WHERE user_id = ? AND created_at >= ?",
+            (user_id, cutoff),
+        ).fetchone()[0]
+        return ip_count >= 8 or user_count >= 3
+
+    def password_reset_user(self, token: str) -> dict | None:
+        token = str(token or "").strip()
+        if len(token) < 20:
+            return None
+        with connect() as conn:
+            return row(
+                conn,
+                """
+                SELECT r.id AS reset_id, u.id AS user_id, u.email, u.display_name
+                FROM password_reset_tokens r
+                JOIN users u ON u.id = r.user_id
+                WHERE r.token_hash = ?
+                  AND r.used_at IS NULL
+                  AND r.expires_at > ?
+                  AND u.is_active = 1
+                """,
+                (hash_token(token), now_iso()),
+            )
+
+    def send_password_reset_email(self, email: str, display_name: str, link: str, user_id: int) -> str:
+        subject = "Passwort zurücksetzen - Wartung FDM Space"
+        text = (
+            f"Hallo {display_name},\n\n"
+            "für deinen Zugang zur Wartungs-App wurde ein Passwort-Reset angefordert.\n"
+            f"Öffne diesen Link innerhalb von {config.PASSWORD_RESET_MINUTES} Minuten:\n\n"
+            f"{link}\n\n"
+            "Wenn du das nicht warst, kannst du diese E-Mail ignorieren.\n"
+        )
+        if config.SMTP_HOST:
+            message = EmailMessage()
+            message["Subject"] = subject
+            message["From"] = config.SMTP_FROM
+            message["To"] = email
+            message.set_content(text)
+            smtp_class = smtplib.SMTP_SSL if config.SMTP_SSL else smtplib.SMTP
+            with smtp_class(config.SMTP_HOST, config.SMTP_PORT, timeout=12) as smtp:
+                if config.SMTP_STARTTLS and not config.SMTP_SSL:
+                    smtp.starttls()
+                if config.SMTP_USER:
+                    smtp.login(config.SMTP_USER, config.SMTP_PASSWORD)
+                smtp.send_message(message)
+            return "smtp"
+        if config.PASSWORD_RESET_DEV_OUTBOX:
+            outbox = config.DATA_DIR / "password_reset_outbox"
+            outbox.mkdir(parents=True, exist_ok=True)
+            stamp = now_iso().replace(":", "").replace("-", "").split("+", 1)[0]
+            target = outbox / f"password-reset-{stamp}-{user_id}.txt"
+            target.write_text(f"To: {email}\nSubject: {subject}\n\n{text}", encoding="utf-8")
+            print(f"Passwort-Reset-Link wurde lokal gespeichert: {target}")
+            return "dev_outbox"
+        return "not_configured"
+
     def valid_date(self, value: str, label: str, allow_future: bool = False) -> str:
         return parse_valid_date(value, label, allow_future)
 
@@ -599,6 +700,75 @@ class WartungHandler(BaseHTTPRequestHandler):
         with connect() as conn:
             audit(conn, {"id": user["id"], "display_name": user["display_name"], "email": user["email"]}, "login", "user", str(user["id"]), ip=self.client_ip())
         self.redirect("/", self.session_cookie(token))
+
+    def request_password_reset(self) -> None:
+        form = self.read_form()
+        if not self.verify_auth_csrf(form):
+            self.auth_page("forgot", error="Sicherheits-Token ungültig. Bitte erneut versuchen.")
+            return
+        email = normalize_email(form.get("email", ""))
+        message = "Wenn diese E-Mail registriert ist, wurde ein Link zum Zurücksetzen versendet."
+        if "@" not in email:
+            self.auth_page("forgot", message=message)
+            return
+        with connect() as conn:
+            user = conn.execute("SELECT id, email, display_name FROM users WHERE email = ? AND is_active = 1", (email,)).fetchone()
+            if user and not self.password_reset_limited(conn, int(user["id"])):
+                token = new_token()
+                expires_at = (datetime.now(timezone.utc) + timedelta(minutes=config.PASSWORD_RESET_MINUTES)).replace(microsecond=0).isoformat()
+                conn.execute(
+                    """
+                    INSERT INTO password_reset_tokens (user_id, token_hash, request_ip, user_agent, created_at, expires_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (user["id"], hash_token(token), self.client_ip(), self.headers.get("User-Agent", "")[:300], now_iso(), expires_at),
+                )
+                link = f"{self.public_base_url()}/reset-password?token={quote(token)}"
+                try:
+                    delivery = self.send_password_reset_email(user["email"], user["display_name"], link, int(user["id"]))
+                except (OSError, smtplib.SMTPException, ValueError) as exc:
+                    delivery = "failed"
+                    print(f"Passwort-Reset-Mail konnte nicht versendet werden: {exc}")
+                audit(conn, None, "request", "password_reset", str(user["id"]), {"delivery": delivery}, self.client_ip())
+        self.auth_page("forgot", message=message)
+
+    def reset_password(self) -> None:
+        form = self.read_form()
+        token = str(form.get("token", "")).strip()
+        if not self.verify_auth_csrf(form):
+            self.auth_page("reset", error="Sicherheits-Token ungültig. Bitte erneut versuchen.", reset_token=token)
+            return
+        password = str(form.get("password", ""))
+        confirm = str(form.get("password_confirm", ""))
+        if password != confirm:
+            self.auth_page("reset", error="Die Passwörter stimmen nicht überein.", reset_token=token)
+            return
+        if len(password) < 8:
+            self.auth_page("reset", error="Das Passwort muss mindestens 8 Zeichen haben.", reset_token=token)
+            return
+        with connect() as conn:
+            reset = row(
+                conn,
+                """
+                SELECT r.id AS reset_id, u.id AS user_id, u.email, u.display_name
+                FROM password_reset_tokens r
+                JOIN users u ON u.id = r.user_id
+                WHERE r.token_hash = ?
+                  AND r.used_at IS NULL
+                  AND r.expires_at > ?
+                  AND u.is_active = 1
+                """,
+                (hash_token(token), now_iso()),
+            )
+            if not reset:
+                self.auth_page("forgot", error="Der Link ist ungültig oder abgelaufen. Bitte fordere einen neuen Link an.")
+                return
+            conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hash_password(password), reset["user_id"]))
+            conn.execute("UPDATE password_reset_tokens SET used_at = ? WHERE id = ?", (now_iso(), reset["reset_id"]))
+            conn.execute("DELETE FROM sessions WHERE user_id = ?", (reset["user_id"],))
+            conn.execute("DELETE FROM login_attempts WHERE email = ?", (reset["email"],))
+            audit(conn, {"id": reset["user_id"], "display_name": reset["display_name"], "email": reset["email"]}, "reset", "password", str(reset["user_id"]), ip=self.client_ip())
+        self.redirect("/login?message=Passwort%20wurde%20aktualisiert.%20Bitte%20melde%20dich%20neu%20an.")
 
     def register(self) -> None:
         form = self.read_form()

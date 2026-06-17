@@ -11,6 +11,13 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 ROOT_DIR = Path(__file__).resolve().parents[1]
 APP_DIR = ROOT_DIR / "app"
 DATA_DIR = Path(os.environ.get("WARTUNG_DATA_DIR", ROOT_DIR / "data")).expanduser()
@@ -34,6 +41,17 @@ SESSION_DAYS = 7
 PASSWORD_ITERATIONS = 310_000
 STATE_RECENT_LOG_LIMIT = max(100, _env_int("WARTUNG_STATE_RECENT_LOG_LIMIT", 1000))
 STATE_RECENT_NOTE_LIMIT = max(100, _env_int("WARTUNG_STATE_RECENT_NOTE_LIMIT", 500))
+
+PUBLIC_URL = os.environ.get("WARTUNG_PUBLIC_URL", "").strip().rstrip("/")
+SMTP_HOST = os.environ.get("WARTUNG_SMTP_HOST", "").strip()
+SMTP_PORT = _env_int("WARTUNG_SMTP_PORT", 587)
+SMTP_USER = os.environ.get("WARTUNG_SMTP_USER", "").strip()
+SMTP_PASSWORD = os.environ.get("WARTUNG_SMTP_PASSWORD", "")
+SMTP_FROM = os.environ.get("WARTUNG_SMTP_FROM", SMTP_USER or "noreply@localhost").strip()
+SMTP_STARTTLS = _env_bool("WARTUNG_SMTP_STARTTLS", True)
+SMTP_SSL = _env_bool("WARTUNG_SMTP_SSL", False)
+PASSWORD_RESET_MINUTES = max(10, _env_int("WARTUNG_PASSWORD_RESET_MINUTES", 30))
+PASSWORD_RESET_DEV_OUTBOX = _env_bool("WARTUNG_RESET_DEV_OUTBOX", not TRUST_PROXY)
 
 ROLES = ("Administrator", "Mentor", "Benutzer")
 ADMIN_ROLE = "Administrator"

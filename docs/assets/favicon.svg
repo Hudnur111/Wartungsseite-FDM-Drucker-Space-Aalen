@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Wartung FDM Space">
+  <rect width="64" height="64" rx="12" fill="#1f6b7d"/>
+  <path d="M16 18h32v8H26v8h17v8H26v12H16V18z" fill="#fff"/>
+  <circle cx="47" cy="46" r="7" fill="#2e7658"/>
+  <path d="M43 46l3 3 5-7" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

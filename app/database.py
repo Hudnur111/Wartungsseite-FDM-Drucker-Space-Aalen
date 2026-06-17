@@ -91,6 +91,17 @@ def init_db() -> None:
                 created_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                token_hash TEXT NOT NULL UNIQUE,
+                request_ip TEXT NOT NULL DEFAULT '',
+                user_agent TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                used_at TEXT
+            );
+
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -184,6 +195,12 @@ def init_db() -> None:
                 ON sessions(expires_at);
             CREATE INDEX IF NOT EXISTS idx_login_attempts_scope
                 ON login_attempts(email, ip_address, success, created_at);
+            CREATE INDEX IF NOT EXISTS idx_password_reset_token_hash
+                ON password_reset_tokens(token_hash);
+            CREATE INDEX IF NOT EXISTS idx_password_reset_recent
+                ON password_reset_tokens(user_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_password_reset_ip_recent
+                ON password_reset_tokens(request_ip, created_at);
             CREATE INDEX IF NOT EXISTS idx_logs_device_task_date
                 ON logs(device_id, task_id, done_on, id);
             CREATE INDEX IF NOT EXISTS idx_logs_device_recent
@@ -286,6 +303,7 @@ def init_db() -> None:
             conn.execute("UPDATE tasks SET active = 0 WHERE id IN ('software-update-mk3s', 'mmu-clean')")
             set_setting(conn, "seed_version", "2")
         conn.execute("DELETE FROM sessions WHERE expires_at <= ? OR csrf_token = ''", (now_iso(),))
+        conn.execute("DELETE FROM password_reset_tokens WHERE expires_at <= ? OR used_at IS NOT NULL", (now_iso(),))
 
 
 def setting(conn: sqlite3.Connection, key: str, default: str = "") -> str:

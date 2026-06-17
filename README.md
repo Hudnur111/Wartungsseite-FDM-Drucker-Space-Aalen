@@ -108,6 +108,23 @@ python .\run.py
 
 Oder eine Datei `teamleiter_code.txt` im Projektordner anlegen und dort nur den Code eintragen.
 
+### Login reparieren
+
+Wenn der Login trotz richtiger Daten nicht klappt, prüfe zuerst, ob du die richtige Umgebung nutzt:
+
+- Lokal: `http://127.0.0.1:8080`
+- Railway: `https://wartungsseite-fdm-drucker-space-aalen-production.up.railway.app`
+
+Lokale und Railway-Datenbanken sind getrennt. Ohne persistentes Railway-Volume können Benutzer nach einem Neuaufbau des Containers verloren gehen.
+
+Für lokale Reparatur oder eine Server-Konsole kann ein Administrator reaktiviert und das Passwort neu gesetzt werden:
+
+```powershell
+.\scripts\reset-admin-password.ps1 -Email "admin@example.org" -Name "Admin"
+```
+
+Das Skript setzt die Rolle auf `Administrator`, aktiviert den Benutzer, löscht alte Sitzungen und entfernt Login-Sperren für diese E-Mail-Adresse.
+
 ## Betrieb
 
 ### Cloud-Hosting (Railway)
@@ -157,6 +174,23 @@ Antwort:
 ```json
 {"ok": true, "service": "wartung-fdm-space"}
 ```
+
+### Passwort vergessen per E-Mail
+
+Die App unterstützt Passwort-Reset per zeitlich begrenztem Einmal-Link. Für Railway oder produktiven Betrieb müssen SMTP-Daten gesetzt werden:
+
+```text
+WARTUNG_PUBLIC_URL=https://wartungsseite-fdm-drucker-space-aalen-production.up.railway.app
+WARTUNG_SMTP_HOST=smtp.example.org
+WARTUNG_SMTP_PORT=587
+WARTUNG_SMTP_USER=mailer@example.org
+WARTUNG_SMTP_PASSWORD=DEIN-SMTP-PASSWORT
+WARTUNG_SMTP_FROM=mailer@example.org
+WARTUNG_SMTP_STARTTLS=1
+WARTUNG_PASSWORD_RESET_MINUTES=30
+```
+
+Lokal schreibt die App Reset-Mails ohne SMTP in `data/password_reset_outbox/`. Auf Railway sollte stattdessen SMTP konfiguriert werden.
 
 ### Lokaler Betrieb auf Windows
 

@@ -46,3 +46,5 @@ https://hudnur111.github.io/Wartungsseite-FDM-Drucker-Space-Aalen/
 - `.nojekyll` deaktiviert die Jekyll-Verarbeitung auf GitHub Pages.
 - `site.webmanifest` beschreibt das Portal für Browser und Installationsdialoge.
 - `robots.txt` und `sitemap.xml` geben Suchmaschinen eine saubere, eindeutige Struktur.
+- `assets/favicon.svg` und `assets/social-card.svg` verbessern Browser-Tab, Lesezeichen und Link-Vorschauen.
+- Die Startseite zeigt Workflow-Badges, den Health-Check der Live-App und eine Sitemap-Verlinkung.

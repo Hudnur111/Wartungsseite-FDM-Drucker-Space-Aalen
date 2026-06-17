@@ -10,12 +10,18 @@
   <meta property="og:description" content="Wartungsverwaltung für Drucker, Rollen, Audit-Log, Backups und GitHub-Pages-Dokumentation.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://hudnur111.github.io/Wartungsseite-FDM-Drucker-Space-Aalen/">
+  <meta property="og:site_name" content="Wartung FDM Space">
+  <meta property="og:image" content="https://hudnur111.github.io/Wartungsseite-FDM-Drucker-Space-Aalen/assets/social-card.svg">
+  <meta property="og:image:alt" content="Wartung FDM Space Release-Portal mit Dashboard-Vorschau.">
+  <meta name="twitter:card" content="summary_large_image">
   <meta name="application-name" content="Wartung FDM Space">
   <link rel="canonical" href="https://hudnur111.github.io/Wartungsseite-FDM-Drucker-Space-Aalen/">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <link rel="manifest" href="site.webmanifest">
   <link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
+  <a class="skip-link" href="#top">Zum Inhalt springen</a>
   <header class="site-header">
     <a class="brand" href="#top" aria-label="Wartung FDM Space">
       <span class="brand-mark">FDM</span>
@@ -28,11 +34,12 @@
       <a href="#system">System</a>
       <a href="#security">Sicherheit</a>
       <a href="#deployment">Betrieb</a>
+      <a href="#release">Release</a>
       <a href="#pages">GitHub Pages</a>
     </nav>
   </header>
 
-  <main id="top">
+  <main id="top" tabindex="-1">
     <section class="hero reveal">
       <div class="hero-copy">
         <p class="eyebrow">PRUSA MK3.5 / MINI+ / XL 5-Tool</p>
@@ -45,6 +52,11 @@
         <div class="hero-actions">
           <a class="button primary" href="https://wartungsseite-fdm-drucker-space-aalen-production.up.railway.app/" target="_blank" rel="noopener noreferrer">App öffnen</a>
           <a class="button" href="#deployment">Dokumentation</a>
+        </div>
+        <div class="hero-badges" aria-label="Release-Status">
+          <span>Live auf Railway</span>
+          <span>GitHub Pages statisch</span>
+          <span>Tests vor Deploy</span>
         </div>
       </div>
 
@@ -90,6 +102,34 @@
       <div><strong><span data-count="7">7</span> Drucker</strong><span>MK3.5, MINI+, XL 5-Tool</span></div>
       <div><strong><span data-count="27">27</span> Punkte</strong><span>Wartungsplan als Startbestand</span></div>
       <div><strong><span data-count="0">0</span> Papier</strong><span>Einträge digital nachvollziehbar</span></div>
+    </section>
+
+    <section id="release" class="section reveal">
+      <div class="section-title">
+        <p class="eyebrow">Release</p>
+        <h2>Öffentliche Seite, geprüfter Deploy und klare Links.</h2>
+        <p>Das Portal zeigt den Projektstatus, verlinkt zur produktiven App und bleibt unabhängig vom Python-Backend statisch erreichbar.</p>
+      </div>
+      <div class="status-grid">
+        <article class="status-card">
+          <span>Python Tests</span>
+          <img src="https://github.com/hudnur111/Wartungsseite-FDM-Drucker-Space-Aalen/actions/workflows/tests.yml/badge.svg" alt="Status des Python-Tests-Workflows">
+        </article>
+        <article class="status-card">
+          <span>GitHub Pages</span>
+          <img src="https://github.com/hudnur111/Wartungsseite-FDM-Drucker-Space-Aalen/actions/workflows/pages.yml/badge.svg" alt="Status des GitHub-Pages-Deploy-Workflows">
+        </article>
+        <article class="status-card">
+          <span>Live-App</span>
+          <strong>Railway</strong>
+          <a href="https://wartungsseite-fdm-drucker-space-aalen-production.up.railway.app/healthz" target="_blank" rel="noopener noreferrer">Health-Check öffnen</a>
+        </article>
+        <article class="status-card">
+          <span>Portal</span>
+          <strong>Statisch</strong>
+          <a href="sitemap.xml">Sitemap prüfen</a>
+        </article>
+      </div>
     </section>
 
     <section id="system" class="section reveal">
@@ -202,7 +242,11 @@
 
   <footer>
     <span>Wartung FDM Space</span>
-    <span>Release-Portal aus /docs</span>
+    <nav class="footer-links" aria-label="Fußnavigation">
+      <a href="https://wartungsseite-fdm-drucker-space-aalen-production.up.railway.app/" target="_blank" rel="noopener noreferrer">App</a>
+      <a href="https://github.com/hudnur111/Wartungsseite-FDM-Drucker-Space-Aalen" target="_blank" rel="noopener noreferrer">GitHub</a>
+      <a href="sitemap.xml">Sitemap</a>
+    </nav>
   </footer>
 
   <script src="assets/site.js"></script>

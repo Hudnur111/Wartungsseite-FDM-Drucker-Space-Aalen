@@ -36,10 +36,35 @@ a {
   color: inherit;
 }
 
+img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
 a:focus-visible,
 button:focus-visible {
   outline: 3px solid rgba(31, 107, 125, .28);
   outline-offset: 3px;
+}
+
+.skip-link {
+  position: fixed;
+  left: 16px;
+  top: 12px;
+  z-index: 30;
+  transform: translateY(-150%);
+  border-radius: 6px;
+  background: #102129;
+  color: #fff;
+  font-weight: 900;
+  padding: 10px 14px;
+  text-decoration: none;
+  transition: transform var(--motion);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
 }
 
 .site-header {
@@ -178,6 +203,23 @@ h3 {
   flex-wrap: wrap;
   gap: 12px;
   margin-top: 24px;
+}
+
+.hero-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.hero-badges span {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .76);
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 900;
+  padding: 6px 10px;
 }
 
 .button {
@@ -564,6 +606,49 @@ code {
   margin: 18px 0 22px;
 }
 
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.status-card {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 128px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  padding: 16px;
+}
+
+.status-card span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.status-card strong {
+  color: var(--text);
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.status-card a {
+  color: var(--accent-dark);
+  font-weight: 900;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.status-card img {
+  width: fit-content;
+  min-height: 20px;
+}
+
 .setting-card {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -668,6 +753,23 @@ footer {
   color: var(--muted);
 }
 
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-weight: 900;
+}
+
+.footer-links a {
+  color: var(--accent-dark);
+  text-decoration: none;
+}
+
+.footer-links a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .not-found {
   display: grid;
   place-items: center;
@@ -712,6 +814,7 @@ footer {
   .cards,
   .trust-strip,
   .pages-grid,
+  .status-grid,
   .release-rail {
     grid-template-columns: 1fr;
   }

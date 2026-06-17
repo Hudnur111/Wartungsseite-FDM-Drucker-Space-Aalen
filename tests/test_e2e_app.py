@@ -4,6 +4,7 @@ import http.cookiejar
 import hashlib
 import json
 import os
+import re
 import secrets
 import socket
 import sqlite3
@@ -49,6 +50,7 @@ class AppE2ETests(unittest.TestCase):
                 "WARTUNG_DB_PATH": str(self.root / "data" / "wartung.db"),
                 "WARTUNG_STATE_RECENT_LOG_LIMIT": "100",
                 "WARTUNG_STATE_RECENT_NOTE_LIMIT": "100",
+                "WARTUNG_RESET_DEV_OUTBOX": "1",
                 "TEAMLEITER_CODE": "test-team-code",
             }
         )
@@ -104,10 +106,13 @@ class AppE2ETests(unittest.TestCase):
         request = urllib.request.Request(f"{self.base}{path}", data=data, headers=headers or {})
         return self.opener.open(request, timeout=5)
 
-    def login(self, email: str = "admin@example.test", password: str = "Password123") -> str:
-        login_page = self.request("/login").read().decode("utf-8")
+    def auth_csrf(self, path: str) -> str:
+        page = self.request(path).read().decode("utf-8")
         marker = 'name="csrf_token" value="'
-        csrf = login_page.split(marker, 1)[1].split('"', 1)[0]
+        return page.split(marker, 1)[1].split('"', 1)[0]
+
+    def login(self, email: str = "admin@example.test", password: str = "Password123") -> str:
+        csrf = self.auth_csrf("/login")
         body = urllib.parse.urlencode({"email": email, "password": password, "csrf_token": csrf}).encode()
         self.request("/auth/login", body, {"Content-Type": "application/x-www-form-urlencoded"}).read()
         state = json.loads(self.request("/api/state").read().decode("utf-8"))
@@ -157,6 +162,43 @@ class AppE2ETests(unittest.TestCase):
         self.assertEqual(caught.exception.code, 400)
         payload = json.loads(caught.exception.read().decode("utf-8"))
         self.assertIn("error", payload)
+
+    def test_password_reset_flow_updates_password_and_clears_locks(self) -> None:
+        db = self.root / "data" / "wartung.db"
+        with sqlite3.connect(db) as conn:
+            conn.execute(
+                "INSERT INTO login_attempts (email, ip_address, success, created_at) VALUES (?, ?, 0, ?)",
+                ("admin@example.test", "127.0.0.1", date.today().isoformat()),
+            )
+
+        csrf = self.auth_csrf("/forgot-password")
+        body = urllib.parse.urlencode({"email": "admin@example.test", "csrf_token": csrf}).encode()
+        page = self.request("/auth/forgot-password", body, {"Content-Type": "application/x-www-form-urlencoded"}).read().decode("utf-8")
+        self.assertIn("Wenn diese E-Mail registriert ist", page)
+
+        outbox = self.root / "data" / "password_reset_outbox"
+        files = sorted(outbox.glob("password-reset-*.txt"))
+        self.assertTrue(files)
+        message = files[-1].read_text(encoding="utf-8")
+        token = re.search(r"/reset-password\?token=([A-Za-z0-9_-]+)", message).group(1)
+
+        csrf = self.auth_csrf(f"/reset-password?token={token}")
+        body = urllib.parse.urlencode(
+            {
+                "token": token,
+                "password": "Password456",
+                "password_confirm": "Password456",
+                "csrf_token": csrf,
+            }
+        ).encode()
+        self.request("/auth/reset-password", body, {"Content-Type": "application/x-www-form-urlencoded"}).read()
+
+        with sqlite3.connect(db) as conn:
+            attempts = conn.execute("SELECT COUNT(*) FROM login_attempts WHERE email = ?", ("admin@example.test",)).fetchone()[0]
+            used = conn.execute("SELECT COUNT(*) FROM password_reset_tokens WHERE used_at IS NOT NULL").fetchone()[0]
+        self.assertEqual(attempts, 0)
+        self.assertEqual(used, 1)
+        self.assertTrue(self.login(password="Password456"))
 
     def test_write_api_rejects_missing_csrf_token(self) -> None:
         self.login()

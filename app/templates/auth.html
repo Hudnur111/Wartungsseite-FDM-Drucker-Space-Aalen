@@ -20,6 +20,7 @@
       <div class="auth-tabs">
         <a class="{{LOGIN_ACTIVE}}" href="/login">Anmelden</a>
         <a class="{{REGISTER_ACTIVE}}" href="/register">Registrieren</a>
+        <a class="{{FORGOT_ACTIVE}}" href="/forgot-password">Passwort vergessen</a>
       </div>
       {{MESSAGE_BLOCK}}
 
@@ -28,6 +29,7 @@
         <label>E-Mail<input name="email" type="email" autocomplete="email" required></label>
         <label>Passwort<input name="password" type="password" autocomplete="current-password" required></label>
         <button class="button primary" type="submit">Anmelden</button>
+        <a class="auth-link" href="/forgot-password">Passwort vergessen?</a>
       </form>
 
       <form class="auth-form {{REGISTER_ACTIVE}}" method="post" action="/auth/register">
@@ -38,6 +40,22 @@
         <label>Teamleiter-Code<input name="team_code" type="password" autocomplete="one-time-code" required></label>
         <p class="auth-hint">{{REGISTER_HINT}}</p>
         <button class="button primary" type="submit">Konto erstellen</button>
+      </form>
+
+      <form class="auth-form {{FORGOT_ACTIVE}}" method="post" action="/auth/forgot-password">
+        <input type="hidden" name="csrf_token" value="{{CSRF_TOKEN}}">
+        <label>E-Mail<input name="email" type="email" autocomplete="email" required></label>
+        <p class="auth-hint">Du erhältst einen zeitlich begrenzten Link, falls die E-Mail registriert ist.</p>
+        <button class="button primary" type="submit">Reset-Link senden</button>
+      </form>
+
+      <form class="auth-form {{RESET_ACTIVE}}" method="post" action="/auth/reset-password">
+        <input type="hidden" name="csrf_token" value="{{CSRF_TOKEN}}">
+        <input type="hidden" name="token" value="{{RESET_TOKEN}}">
+        <label>Neues Passwort<input name="password" type="password" autocomplete="new-password" required minlength="8"></label>
+        <label>Passwort wiederholen<input name="password_confirm" type="password" autocomplete="new-password" required minlength="8"></label>
+        <p class="auth-hint">Der Link kann nur einmal verwendet werden.</p>
+        <button class="button primary" type="submit">Passwort speichern</button>
       </form>
     </section>
   </main>

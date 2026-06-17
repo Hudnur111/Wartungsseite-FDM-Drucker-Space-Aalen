@@ -4,6 +4,7 @@ document.querySelectorAll('a[href^="#"]').forEach((link) => {
     if (!target) return;
     event.preventDefault();
     target.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (target.hasAttribute("tabindex")) target.focus({ preventScroll: true });
   });
 });
 
