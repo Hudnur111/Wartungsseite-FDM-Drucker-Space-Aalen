@@ -53,6 +53,10 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 .button.primary:hover { background: var(--accent-dark); }
 .button.ghost { border-color: var(--line-strong); background: #fff; color: var(--text); }
 .button.danger { background: var(--red); color: #fff; }
+button:focus-visible, a:focus-visible { outline: 3px solid rgba(31,107,125,.22); outline-offset: 3px; }
+button:disabled, input:disabled, select:disabled, textarea:disabled, .button[aria-disabled="true"] { cursor: not-allowed; opacity: .62; transform: none !important; box-shadow: none !important; }
+.is-busy { position: relative; }
+.is-busy::after { content: ""; display: inline-block; width: .8em; height: .8em; margin-left: 8px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; vertical-align: -1px; animation: spin .72s linear infinite; }
 
 .layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: calc(100vh - 88px); min-width: 0; }
 .sidebar { position: sticky; top: 88px; align-self: start; min-width: 0; height: calc(100vh - 88px); overflow: auto; border-right: 1px solid var(--line); background: rgba(255,255,255,.78); padding: 18px 16px; }
@@ -199,6 +203,10 @@ tr:last-child td { border-bottom: 0; }
 
 @keyframes toastOut {
   to { opacity: 0; transform: translateY(8px) scale(.98); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 @media (max-width: 1100px) {

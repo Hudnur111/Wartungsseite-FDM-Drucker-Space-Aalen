@@ -1,0 +1,41 @@
+name: Python Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Python 3.12
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Compile Python modules
+        run: |
+          python -m py_compile \
+            app/config.py \
+            app/database.py \
+            app/security.py \
+            app/validators.py \
+            app/maintenance.py \
+            app/reports.py \
+            app/server.py
+
+      - name: Run test suite
+        run: python -m unittest discover -s tests

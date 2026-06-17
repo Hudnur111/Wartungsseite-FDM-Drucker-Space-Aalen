@@ -111,6 +111,8 @@ class WartungHandler(BaseHTTPRequestHandler):
             "Cross-Origin-Opener-Policy": "same-origin",
             "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
         }
+        if self.is_secure_request():
+            headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         if content_type.startswith("text/html"):
             headers["Content-Security-Policy"] = (
                 "default-src 'self'; "
@@ -690,6 +692,9 @@ class WartungHandler(BaseHTTPRequestHandler):
         number = int(payload.get("tool_number", 0))
         if number < 1 or number > 5:
             raise ValueError("Tool muss zwischen 1 und 5 liegen.")
+        last_nozzle_change = str(payload.get("last_nozzle_change", "")).strip()[:20]
+        if last_nozzle_change:
+            last_nozzle_change = self.valid_date(last_nozzle_change, "Letzter Wechsel")
         with connect() as conn:
             device = self.active_device(conn, device_id)
             if device["kind"] != "xl5":
@@ -711,7 +716,7 @@ class WartungHandler(BaseHTTPRequestHandler):
                     number,
                     str(payload.get("nozzle_type", "")).strip()[:120],
                     str(payload.get("material", "")).strip()[:120],
-                    str(payload.get("last_nozzle_change", "")).strip()[:20],
+                    last_nozzle_change,
                     str(payload.get("issue_note", "")).strip()[:500],
                     user.get("display_name") or user["email"],
                     now_iso(),

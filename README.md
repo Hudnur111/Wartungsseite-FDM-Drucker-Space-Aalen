@@ -137,6 +137,13 @@ Ohne persistentes Volume kann SQLite-Datenbestand bei Neuaufbau des Containers v
 
 Die State-Limits begrenzen nur die Oberfläche. Exporte und Backups arbeiten weiterhin mit dem vollständigen Datenbestand.
 
+### Release-Checks
+
+GitHub Actions enthält zwei aktive Workflows:
+
+- `.github/workflows/tests.yml` kompiliert die Python-Module und führt die Test-Suite aus.
+- `.github/workflows/pages.yml` validiert den Release ebenfalls und veröffentlicht anschließend das GitHub-Pages-Portal aus `docs/`.
+
 ### Lokaler Betrieb auf Windows
 
 Autostart mit Windows-Bordmitteln:

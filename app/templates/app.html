@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Wartung FDM Space</title>
+  <meta name="description" content="Interne Wartungsverwaltung für FDM-Drucker, Druckstunden, Audit-Log, Backups und Rollen.">
+  <meta name="theme-color" content="#1f6b7d">
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
@@ -13,7 +15,7 @@
       <h1>Wartung</h1>
     </div>
     <nav id="mainMenu" class="main-menu" aria-label="Hauptmenü">
-      <button class="menu-button active" data-view="maintenance" type="button">Wartung</button>
+      <button class="menu-button active" data-view="maintenance" aria-current="page" type="button">Wartung</button>
       <button class="menu-button" data-view="logbook" type="button">Protokoll</button>
       <button id="adminToggle" class="menu-button hidden" type="button">Admin</button>
     </nav>
@@ -38,7 +40,7 @@
     </aside>
 
     <section class="workspace">
-      <div id="notificationBanner" class="notification-banner hidden"></div>
+      <div id="notificationBanner" class="notification-banner hidden" role="status" aria-live="polite"></div>
       <section id="deviceHeader" class="device-header"></section>
       <section id="overviewStats" class="stats-grid"></section>
 

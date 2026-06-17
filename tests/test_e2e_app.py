@@ -194,6 +194,24 @@ class AppE2ETests(unittest.TestCase):
         state = json.loads(self.request("/api/state").read().decode("utf-8"))
         self.assertTrue(any(item["note"] == "latest-by-date" for item in state["logs"]))
 
+    def test_xl_tool_change_rejects_future_date(self) -> None:
+        csrf = self.login()
+        tomorrow = (date.today() + timedelta(days=1)).isoformat()
+        payload = {
+            "tool_number": 1,
+            "nozzle_type": "0.4 brass",
+            "material": "PLA",
+            "last_nozzle_change": tomorrow,
+            "issue_note": "future date should fail",
+        }
+        with self.assertRaises(urllib.error.HTTPError) as caught:
+            self.request(
+                "/api/devices/xl-5-tool/xl-tools",
+                json.dumps(payload).encode("utf-8"),
+                {"Content-Type": "application/json", "X-CSRF-Token": csrf},
+            ).read()
+        self.assertEqual(caught.exception.code, 400)
+
 
 if __name__ == "__main__":
     unittest.main()

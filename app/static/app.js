@@ -152,12 +152,23 @@ function showFatalError(error) {
   document.body.append(main);
 }
 
-async function runAction(action, successMessage = "") {
+async function runAction(action, successMessage = "", trigger = null) {
+  const control = trigger instanceof HTMLElement ? trigger : null;
+  if (control?.disabled) return;
   try {
+    if (control) {
+      control.disabled = true;
+      control.classList.add("is-busy");
+    }
     await action();
     if (successMessage) showToast(successMessage);
   } catch (error) {
     showToast(error.message || "Aktion fehlgeschlagen.", "error");
+  } finally {
+    if (control) {
+      control.disabled = false;
+      control.classList.remove("is-busy");
+    }
   }
 }
 
@@ -335,6 +346,7 @@ function renderDevices() {
       </button>
     `).join("") : '<div class="empty compact">Kein Gerät gefunden.</div>';
   els.deviceList.querySelectorAll("[data-device]").forEach((button) => {
+    button.setAttribute("aria-current", button.dataset.device === state.selectedDeviceId ? "true" : "false");
     button.addEventListener("click", () => {
       state.selectedDeviceId = button.dataset.device;
       render();
@@ -386,9 +398,16 @@ function renderStats(device, tasks) {
 
 function renderTaskSelect(device, tasks) {
   els.taskSelect.replaceChildren();
-  tasks.filter(canLogTask).forEach((task) => {
+  const allowedTasks = tasks.filter(canLogTask);
+  const logButton = els.logForm.querySelector('[type="submit"]');
+  allowedTasks.forEach((task) => {
     els.taskSelect.add(new Option(task.title, task.id));
   });
+  if (!allowedTasks.length) {
+    els.taskSelect.add(new Option("Keine berechtigten Wartungspunkte", ""));
+  }
+  els.taskSelect.disabled = !allowedTasks.length;
+  if (logButton) logButton.disabled = !allowedTasks.length;
 }
 
 function filterText() {
@@ -458,7 +477,7 @@ function renderNotes(device) {
     </article>
   `).join("") : '<div class="empty">Keine Vermerke vorhanden.</div>';
   els.noteList.querySelectorAll("[data-note-id]").forEach((button) => {
-    button.addEventListener("click", () => runAction(() => deleteItem("notes", button.dataset.noteId), "Vermerk gelöscht."));
+    button.addEventListener("click", (event) => runAction(() => deleteItem("notes", button.dataset.noteId), "Vermerk gelöscht.", event.currentTarget));
   });
 }
 
@@ -477,7 +496,7 @@ function renderHistory(device) {
     </article>
   `).join("") : '<div class="empty">Keine Wartungseinträge vorhanden.</div>';
   els.historyList.querySelectorAll("[data-log-id]").forEach((button) => {
-    button.addEventListener("click", () => runAction(() => deleteItem("logs", button.dataset.logId), "Eintrag gelöscht."));
+    button.addEventListener("click", (event) => runAction(() => deleteItem("logs", button.dataset.logId), "Eintrag gelöscht.", event.currentTarget));
   });
 }
 
@@ -500,7 +519,9 @@ function renderXlTools(device) {
       </form>
     </article>
   `).join("");
-  els.xlToolsGrid.querySelectorAll("[data-xl-tool]").forEach((form) => form.addEventListener("submit", saveXlTool));
+  els.xlToolsGrid.querySelectorAll("[data-xl-tool]").forEach((form) => {
+    form.addEventListener("submit", (event) => runAction(() => saveXlTool(event), "Tool gespeichert.", event.submitter));
+  });
 }
 
 function filteredAdminUsers() {
@@ -556,7 +577,7 @@ function renderAdmin() {
     select.addEventListener("change", () => runAction(() => updateUser(select.dataset.userRole, { role: select.value }), "Rolle aktualisiert."));
   });
   els.adminUsers.querySelectorAll("[data-user-active]").forEach((button) => {
-    button.addEventListener("click", () => runAction(() => updateUser(button.dataset.userActive, { is_active: Number(button.dataset.active) }), "Benutzerstatus aktualisiert."));
+    button.addEventListener("click", (event) => runAction(() => updateUser(button.dataset.userActive, { is_active: Number(button.dataset.active) }), "Benutzerstatus aktualisiert.", event.currentTarget));
   });
   els.adminUsers.querySelectorAll("[data-user-password]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -569,7 +590,7 @@ function renderAdmin() {
       runAction(async () => {
         await updateUser(button.dataset.userPassword, { password });
         input.value = "";
-      }, "Passwort zurückgesetzt.");
+      }, "Passwort zurückgesetzt.", button);
     });
   });
   els.adminDevices.innerHTML = state.admin.devices.map((device) => `
@@ -586,7 +607,7 @@ function renderAdmin() {
     </div>
   `).join("") || '<div class="empty">Noch keine Backups.</div>';
   els.backupList.querySelectorAll("[data-restore-backup]").forEach((button) => {
-    button.addEventListener("click", () => runAction(() => restoreBackup(button.dataset.restoreBackup), "Backup wiederhergestellt."));
+    button.addEventListener("click", (event) => runAction(() => restoreBackup(button.dataset.restoreBackup), "Backup wiederhergestellt.", event.currentTarget));
   });
   els.auditList.innerHTML = filteredAudit().map((item) => `<div class="audit-row"><strong>${escapeHtml(item.action)} · ${escapeHtml(item.entity_type)}</strong><div class="item-meta">${escapeHtml(item.user_name)} · ${escapeHtml(item.created_at)} · ${escapeHtml(item.entity_id)}</div></div>`).join("") || '<div class="empty">Kein passender Audit-Eintrag.</div>';
   els.teamsWebhook.value = state.admin.settings.teams_webhook_url || "";
@@ -595,7 +616,13 @@ function renderAdmin() {
 
 function renderAdminTabs() {
   els.adminTabs.querySelectorAll("[data-admin-tab]").forEach((button) => {
-    button.classList.toggle("active", button.dataset.adminTab === state.adminTab);
+    const active = button.dataset.adminTab === state.adminTab;
+    button.classList.toggle("active", active);
+    if (active) {
+      button.setAttribute("aria-current", "page");
+    } else {
+      button.removeAttribute("aria-current");
+    }
   });
   document.querySelectorAll("[data-admin-panel]").forEach((panel) => {
     panel.classList.toggle("admin-panel-hidden", panel.dataset.adminPanel !== state.adminTab);
@@ -607,7 +634,13 @@ function renderViews() {
     section.classList.toggle("view-hidden", section.dataset.view !== state.view);
   });
   els.mainMenu.querySelectorAll("[data-view]").forEach((button) => {
-    button.classList.toggle("active", button.dataset.view === state.view);
+    const active = button.dataset.view === state.view;
+    button.classList.toggle("active", active);
+    if (active) {
+      button.setAttribute("aria-current", "page");
+    } else {
+      button.removeAttribute("aria-current");
+    }
   });
 }
 
@@ -638,6 +671,8 @@ async function loadState() {
   if (!state.selectedDeviceId) state.selectedDeviceId = state.devices.find((device) => device.active !== 0)?.id;
   if (state.user?.role === "Administrator") {
     state.admin = await api("/api/admin/state");
+  } else {
+    state.admin = null;
   }
   render();
 }
@@ -768,19 +803,22 @@ async function logout() {
   location.href = "/login";
 }
 
-els.doneOn.value = todayIso();
-els.noteDate.value = todayIso();
-els.logoutButton.addEventListener("click", () => runAction(logout));
+const today = todayIso();
+els.doneOn.value = today;
+els.noteDate.value = today;
+els.doneOn.max = today;
+els.noteDate.max = today;
+els.logoutButton.addEventListener("click", (event) => runAction(logout, "", event.currentTarget));
 els.adminToggle.addEventListener("click", openAdminModal);
 els.adminCloseButton.addEventListener("click", closeAdminModal);
 els.adminPanel.addEventListener("click", (event) => {
   if (event.target === els.adminPanel) closeAdminModal();
 });
 els.exportMonth.addEventListener("change", updateExportLinks);
-els.refreshButton.addEventListener("click", () => runAction(loadState, "Daten aktualisiert."));
-els.logForm.addEventListener("submit", (event) => runAction(() => saveLog(event), "Eintrag gespeichert."));
-els.noteForm.addEventListener("submit", (event) => runAction(() => saveNote(event), "Vermerk gespeichert."));
-els.hoursForm.addEventListener("submit", (event) => runAction(() => saveHours(event), "Druckstunden aktualisiert."));
+els.refreshButton.addEventListener("click", (event) => runAction(loadState, "Daten aktualisiert.", event.currentTarget));
+els.logForm.addEventListener("submit", (event) => runAction(() => saveLog(event), "Eintrag gespeichert.", event.submitter));
+els.noteForm.addEventListener("submit", (event) => runAction(() => saveNote(event), "Vermerk gespeichert.", event.submitter));
+els.hoursForm.addEventListener("submit", (event) => runAction(() => saveHours(event), "Druckstunden aktualisiert.", event.submitter));
 els.searchInput.addEventListener("input", render);
 els.deviceSearch.addEventListener("input", renderDevices);
 els.statusFilter.addEventListener("change", render);
@@ -797,20 +835,20 @@ els.adminTabs.querySelectorAll("[data-admin-tab]").forEach((button) => {
     renderAdminTabs();
   });
 });
-els.profileForm.addEventListener("submit", (event) => runAction(() => saveProfile(event), "Profil gespeichert."));
+els.profileForm.addEventListener("submit", (event) => runAction(() => saveProfile(event), "Profil gespeichert.", event.submitter));
 els.userSearch.addEventListener("input", renderAdmin);
 els.userRoleFilter.addEventListener("change", renderAdmin);
 els.userStatusFilter.addEventListener("change", renderAdmin);
 els.auditSearch.addEventListener("input", renderAdmin);
 els.auditActionFilter.addEventListener("input", renderAdmin);
 els.auditEntityFilter.addEventListener("input", renderAdmin);
-els.teamCodeForm.addEventListener("submit", (event) => runAction(() => saveTeamCode(event), "Teamleiter-Code gespeichert."));
-els.deviceForm.addEventListener("submit", (event) => runAction(() => saveDevice(event), "Drucker gespeichert."));
-els.taskForm.addEventListener("submit", (event) => runAction(() => saveTask(event), "Wartungspunkt gespeichert."));
-els.backupButton.addEventListener("click", () => runAction(createBackup, "Backup erstellt."));
-els.backupPruneButton.addEventListener("click", () => runAction(pruneBackups, "Backups aufgeräumt."));
-els.notificationForm.addEventListener("submit", (event) => runAction(() => saveNotification(event), "Benachrichtigungen gespeichert."));
-els.sendDueButton.addEventListener("click", () => runAction(sendDueNotifications, "Teams-Benachrichtigung gesendet."));
+els.teamCodeForm.addEventListener("submit", (event) => runAction(() => saveTeamCode(event), "Teamleiter-Code gespeichert.", event.submitter));
+els.deviceForm.addEventListener("submit", (event) => runAction(() => saveDevice(event), "Drucker gespeichert.", event.submitter));
+els.taskForm.addEventListener("submit", (event) => runAction(() => saveTask(event), "Wartungspunkt gespeichert.", event.submitter));
+els.backupButton.addEventListener("click", (event) => runAction(createBackup, "Backup erstellt.", event.currentTarget));
+els.backupPruneButton.addEventListener("click", (event) => runAction(pruneBackups, "Backups aufgeräumt.", event.currentTarget));
+els.notificationForm.addEventListener("submit", (event) => runAction(() => saveNotification(event), "Benachrichtigungen gespeichert.", event.submitter));
+els.sendDueButton.addEventListener("click", (event) => runAction(sendDueNotifications, "Teams-Benachrichtigung gesendet.", event.currentTarget));
 
 loadState().catch((error) => {
   showFatalError(error);

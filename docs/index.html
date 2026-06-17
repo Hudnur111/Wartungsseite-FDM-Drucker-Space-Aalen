@@ -6,6 +6,10 @@
   <title>Wartung FDM Space</title>
   <meta name="description" content="Professionelle Wartungsverwaltung für PRUSA MK3.5, MINI+ und XL 5-Tool Drucker im FDM Space.">
   <meta name="theme-color" content="#1f6b7d">
+  <meta property="og:title" content="Wartung FDM Space">
+  <meta property="og:description" content="Wartungsverwaltung für Drucker, Rollen, Audit-Log, Backups und GitHub-Pages-Dokumentation.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://hudnur111.github.io/Wartungsseite-FDM-Drucker-Space-Aalen/">
   <link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
@@ -26,7 +30,7 @@
   </header>
 
   <main id="top">
-    <section class="hero">
+    <section class="hero reveal">
       <div class="hero-copy">
         <p class="eyebrow">PRUSA MK3.5 / MINI+ / XL 5-Tool</p>
         <h1>Wartung, Historie und Verantwortung an einem Ort.</h1>
@@ -41,7 +45,7 @@
         </div>
       </div>
 
-      <section class="product-frame" aria-label="Dashboard Vorschau">
+      <section class="product-frame dashboard-preview" aria-label="Dashboard Vorschau">
         <div class="product-toolbar">
           <span class="dot"></span>
           <span class="dot"></span>
@@ -59,33 +63,33 @@
             <div class="product-head">
               <div>
                 <small>Ausgewählt</small>
-                <strong>PRUSA XL 5-Tool</strong>
+                <strong id="previewDevice">PRUSA XL 5-Tool</strong>
               </div>
-              <em>Administrator</em>
+              <em id="previewRole">Administrator</em>
             </div>
             <div class="metric-row">
-              <article><span>Fällig</span><strong>7</strong></article>
-              <article><span>Bald</span><strong>0</strong></article>
-              <article><span>Ok</span><strong>0</strong></article>
+              <article><span>Fällig</span><strong id="previewDue">7</strong></article>
+              <article><span>Bald</span><strong id="previewSoon">2</strong></article>
+              <article><span>Ok</span><strong id="previewOk">18</strong></article>
             </div>
             <div class="task-list">
-              <div><strong>XL Linear-Rails</strong><span>200-300 h</span><b>offen</b></div>
-              <div><strong>Tool 1 Nozzle</strong><span>b.B.</span><b class="neutral">bei Bedarf</b></div>
-              <div><strong>Firmware prüfen</strong><span>monatlich</span><b>offen</b></div>
+              <div data-preview-row="0"><strong>XL Linear-Rails</strong><span>200-300 h</span><b>offen</b></div>
+              <div data-preview-row="1"><strong>Tool 1 Nozzle</strong><span>b.B.</span><b class="neutral">bei Bedarf</b></div>
+              <div data-preview-row="2"><strong>Firmware prüfen</strong><span>monatlich</span><b>bald</b></div>
             </div>
           </div>
         </div>
       </section>
     </section>
 
-    <section class="trust-strip" aria-label="Kernfunktionen">
-      <div><strong>3 Rollen</strong><span>Administrator, Mentor, Benutzer</span></div>
-      <div><strong>7 Drucker</strong><span>MK3.5, MINI+, XL 5-Tool</span></div>
-      <div><strong>27 Punkte</strong><span>Wartungsplan als Startbestand</span></div>
-      <div><strong>0 Papier</strong><span>Einträge digital nachvollziehbar</span></div>
+    <section class="trust-strip reveal" aria-label="Kernfunktionen">
+      <div><strong><span data-count="3">3</span> Rollen</strong><span>Administrator, Mentor, Benutzer</span></div>
+      <div><strong><span data-count="7">7</span> Drucker</strong><span>MK3.5, MINI+, XL 5-Tool</span></div>
+      <div><strong><span data-count="27">27</span> Punkte</strong><span>Wartungsplan als Startbestand</span></div>
+      <div><strong><span data-count="0">0</span> Papier</strong><span>Einträge digital nachvollziehbar</span></div>
     </section>
 
-    <section id="system" class="section">
+    <section id="system" class="section reveal">
       <div class="section-title">
         <p class="eyebrow">System</p>
         <h2>Gebaut für wiederkehrende Wartung im Alltag.</h2>
@@ -115,7 +119,7 @@
       </div>
     </section>
 
-    <section id="security" class="section split">
+    <section id="security" class="section split reveal">
       <div>
         <p class="eyebrow">Sicherheit</p>
         <h2>Die öffentliche Seite ist statisch. Die App bleibt intern.</h2>
@@ -134,7 +138,7 @@
       </div>
     </section>
 
-    <section id="deployment" class="section split reverse">
+    <section id="deployment" class="section split reverse reveal">
       <div class="code-card">
         <span>App öffnen</span>
         <code><a href="https://wartungsseite-fdm-drucker-space-aalen-production.up.railway.app/" target="_blank" rel="noopener noreferrer" style="color: #fff; text-decoration: none;">wartungsseite-fdm-drucker-space-aalen-production.up.railway.app</a></code>
@@ -154,7 +158,7 @@
       </div>
     </section>
 
-    <section id="pages" class="section pages-panel">
+    <section id="pages" class="section pages-panel reveal">
       <div class="section-title">
         <p class="eyebrow">Projekt & Quellcode</p>
         <h2>Open Source auf GitHub</h2>
@@ -178,6 +182,12 @@
           <strong>Python 3.12 · SQLite</strong>
         </article>
       </div>
+      <div class="release-rail" aria-label="Release-Qualität">
+        <div><span>01</span><strong>Tests</strong><small>Automatischer Python-Workflow</small></div>
+        <div><span>02</span><strong>Pages</strong><small>Deploy über aktuelle GitHub Actions</small></div>
+        <div><span>03</span><strong>Backups</strong><small>Manuell, täglich und wiederherstellbar</small></div>
+        <div><span>04</span><strong>Audit</strong><small>Änderungen nachvollziehbar</small></div>
+      </div>
       <ol class="steps">
         <li>Besuche die <strong>laufende App</strong> unter <code>wartungsseite-fdm-drucker-space-aalen-production.up.railway.app</code></li>
         <li>Melde dich an oder registriere dich (mit Teamleiter-Code)</li>
@@ -189,7 +199,7 @@
 
   <footer>
     <span>Wartung FDM Space</span>
-    <span>Static release page from /docs</span>
+    <span>Release-Portal aus /docs</span>
   </footer>
 
   <script src="assets/site.js"></script>

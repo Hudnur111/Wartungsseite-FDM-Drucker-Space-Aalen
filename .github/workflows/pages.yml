@@ -11,8 +11,38 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate:
+    name: Validate release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Compile Python modules
+        run: |
+          python -m py_compile \
+            app/config.py \
+            app/database.py \
+            app/security.py \
+            app/validators.py \
+            app/maintenance.py \
+            app/reports.py \
+            app/server.py
+
+      - name: Run test suite
+        run: python -m unittest discover -s tests
+
   deploy:
     name: Deploy GitHub Pages
+    needs: validate
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -27,11 +57,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v6
+
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: ./docs
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
