@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://hudnur111.github.io/Wartungsseite-FDM-Drucker-Space-Aalen/sitemap.xml

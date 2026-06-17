@@ -40,3 +40,9 @@ Das Portal wird über den aktiven Workflow `.github/workflows/pages.yml` aus `do
 ```text
 https://hudnur111.github.io/Wartungsseite-FDM-Drucker-Space-Aalen/
 ```
+
+## Release-Dateien
+
+- `.nojekyll` deaktiviert die Jekyll-Verarbeitung auf GitHub Pages.
+- `site.webmanifest` beschreibt das Portal für Browser und Installationsdialoge.
+- `robots.txt` und `sitemap.xml` geben Suchmaschinen eine saubere, eindeutige Struktur.

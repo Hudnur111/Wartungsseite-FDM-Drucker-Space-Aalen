@@ -201,7 +201,12 @@ async function api(path, options = {}) {
   const headers = new Headers(options.headers || {});
   if (method !== "GET") headers.set("X-CSRF-Token", state.csrfToken);
   if (options.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
-  const response = await fetch(path, { ...options, headers });
+  let response;
+  try {
+    response = await fetch(path, { ...options, headers });
+  } catch (error) {
+    throw new Error("Server nicht erreichbar. Bitte Verbindung prüfen und erneut versuchen.");
+  }
   if (response.status === 401) {
     location.href = "/login";
     throw new Error("Nicht angemeldet.");

@@ -126,11 +126,12 @@ class WartungHandler(BaseHTTPRequestHandler):
         return headers
 
     def send_bytes(self, body: bytes, content_type: str, status: HTTPStatus = HTTPStatus.OK, headers: dict[str, str] | None = None) -> None:
-        extra_headers = headers or {}
+        extra_headers = dict(headers or {})
+        cache_control = extra_headers.pop("Cache-Control", "no-store")
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", cache_control)
         for key, value in self.security_headers(content_type).items():
             if key not in extra_headers:
                 self.send_header(key, value)
@@ -152,7 +153,10 @@ class WartungHandler(BaseHTTPRequestHandler):
         self.send_bytes(b"", "text/plain; charset=utf-8", HTTPStatus.SEE_OTHER, headers)
 
     def read_body(self) -> bytes:
-        size = int(self.headers.get("Content-Length", "0"))
+        try:
+            size = int(self.headers.get("Content-Length", "0"))
+        except ValueError as exc:
+            raise ValueError("Ungültige Anfragegröße.") from exc
         if size < 1 or size > 200_000:
             raise ValueError("Ungültige Anfragegröße.")
         return self.rfile.read(size)
@@ -270,6 +274,9 @@ class WartungHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         query = parse_qs(parsed.query)
+        if path == "/healthz":
+            self.send_json({"ok": True, "service": "wartung-fdm-space"})
+            return
         if path in {"/login", "/register"}:
             if self.current_user():
                 self.redirect("/")
@@ -310,7 +317,12 @@ class WartungHandler(BaseHTTPRequestHandler):
             user = self.require_admin()
             if not user:
                 return
-            self.download_backup(path)
+            try:
+                self.download_backup(path)
+            except ValueError as exc:
+                message = str(exc)
+                status = HTTPStatus.NOT_FOUND if "nicht gefunden" in message.lower() else HTTPStatus.BAD_REQUEST
+                self.send_json({"error": message}, status)
             return
         self.send_text("Nicht gefunden.", status=HTTPStatus.NOT_FOUND)
 
@@ -324,7 +336,9 @@ class WartungHandler(BaseHTTPRequestHandler):
             self.send_text("Nicht gefunden.", status=HTTPStatus.NOT_FOUND)
             return
         content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
-        self.send_bytes(path.read_bytes(), content_type)
+        if content_type in {"text/css", "text/javascript", "application/javascript"}:
+            content_type = f"{content_type}; charset=utf-8"
+        self.send_bytes(path.read_bytes(), content_type, headers={"Cache-Control": "public, max-age=3600"})
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path

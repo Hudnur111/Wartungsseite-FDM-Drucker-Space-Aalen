@@ -6,19 +6,19 @@ Professionelle Wartungsverwaltung für die FDM-Space-Druckerflotte:
 - PRUSA MINI+
 - PRUSA XL 5-Tool / 5-Nozzle
 
-## 🚀 App öffnen
+## App öffnen
 
 Die Wartungs-App läuft **live auf Railway**:
 
-👉 **[wartungsseite-fdm-drucker-space-aalen-production.up.railway.app](https://wartungsseite-fdm-drucker-space-aalen-production.up.railway.app/)**
+**[wartungsseite-fdm-drucker-space-aalen-production.up.railway.app](https://wartungsseite-fdm-drucker-space-aalen-production.up.railway.app/)**
 
 Login oder Registrierung mit Teamleiter-Code.
 
-## 📚 Dokumentation
+## Dokumentation
 
 GitHub Pages Portal mit Features und Betriebsanleitung:
 
-👉 [Release Portal (GitHub Pages)](https://hudnur111.github.io/Wartungsseite-FDM-Drucker-Space-Aalen/)
+[Release Portal (GitHub Pages)](https://hudnur111.github.io/Wartungsseite-FDM-Drucker-Space-Aalen/)
 
 ## Wichtig zu GitHub Pages
 
@@ -143,6 +143,20 @@ GitHub Actions enthält zwei aktive Workflows:
 
 - `.github/workflows/tests.yml` kompiliert die Python-Module und führt die Test-Suite aus.
 - `.github/workflows/pages.yml` validiert den Release ebenfalls und veröffentlicht anschließend das GitHub-Pages-Portal aus `docs/`.
+
+### Health-Check
+
+Für Monitoring, Railway oder einen Reverse Proxy liefert die App einen einfachen Health-Endpoint:
+
+```text
+GET /healthz
+```
+
+Antwort:
+
+```json
+{"ok": true, "service": "wartung-fdm-space"}
+```
 
 ### Lokaler Betrieb auf Windows
 

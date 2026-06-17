@@ -113,6 +113,17 @@ class AppE2ETests(unittest.TestCase):
         state = json.loads(self.request("/api/state").read().decode("utf-8"))
         return state["csrfToken"]
 
+    def test_healthz_and_static_cache_headers(self) -> None:
+        health = self.request("/healthz")
+        payload = json.loads(health.read().decode("utf-8"))
+        self.assertEqual(payload, {"ok": True, "service": "wartung-fdm-space"})
+        self.assertEqual(health.headers["Cache-Control"], "no-store")
+
+        styles = self.request("/static/styles.css")
+        self.assertIn("text/css", styles.headers["Content-Type"])
+        self.assertEqual(styles.headers["Cache-Control"], "public, max-age=3600")
+        self.assertEqual(styles.headers["X-Content-Type-Options"], "nosniff")
+
     def test_login_create_log_backup_and_pdf_export(self) -> None:
         csrf = self.login()
         payload = {
@@ -138,6 +149,14 @@ class AppE2ETests(unittest.TestCase):
 
         pdf = self.request("/api/export.pdf").read()
         self.assertTrue(pdf.startswith(b"%PDF-"))
+
+    def test_invalid_backup_download_path_returns_json_error(self) -> None:
+        self.login()
+        with self.assertRaises(urllib.error.HTTPError) as caught:
+            self.request("/api/admin/backups/%2e%2e%2Fwartung.db/download").read()
+        self.assertEqual(caught.exception.code, 400)
+        payload = json.loads(caught.exception.read().decode("utf-8"))
+        self.assertIn("error", payload)
 
     def test_write_api_rejects_missing_csrf_token(self) -> None:
         self.login()
