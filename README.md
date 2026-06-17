@@ -18,7 +18,7 @@ Login oder Registrierung mit Teamleiter-Code.
 
 GitHub Pages Portal mit Features und Betriebsanleitung:
 
-👉 [Release Portal (GitHub Pages)](https://github.io)
+👉 [Release Portal (GitHub Pages)](https://hudnur111.github.io/Wartungsseite-FDM-Drucker-Space-Aalen/)
 
 ## Wichtig zu GitHub Pages
 
@@ -38,6 +38,12 @@ Danach im Browser öffnen:
 
 ```text
 http://127.0.0.1:8080
+```
+
+### Tests ausführen
+
+```powershell
+python -m unittest discover -s tests
 ```
 
 Im lokalen Netzwerk kann die App über die IP des Rechners erreicht werden, zum Beispiel:
@@ -66,8 +72,8 @@ backups/
   *.db               Automatische und manuelle Backups
 docs/
   index.html         Statische GitHub-Pages-Seite
-  404.html           Fehlerseite fuer GitHub Pages
-  assets/            CSS und JavaScript fuer GitHub Pages
+  404.html           Fehlerseite für GitHub Pages
+  assets/            CSS und JavaScript für GitHub Pages
 scripts/
   start.ps1
   start-https.ps1
@@ -113,6 +119,16 @@ https://wartungsseite-fdm-drucker-space-aalen-production.up.railway.app
 ```
 
 Automatisches Deployment bei Push auf `main` (konfiguriert via `railway.toml`).
+
+Für produktiven Betrieb sollte ein persistentes Volume verwendet werden. Die App unterstützt dafür diese Variablen:
+
+```text
+WARTUNG_DATA_DIR=/data
+WARTUNG_BACKUP_DIR=/data/backups
+WARTUNG_DB_PATH=/data/wartung.db
+```
+
+Ohne persistentes Volume kann SQLite-Datenbestand bei Neuaufbau des Containers verloren gehen.
 
 ### Lokaler Betrieb auf Windows
 

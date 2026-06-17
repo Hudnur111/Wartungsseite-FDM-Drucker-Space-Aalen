@@ -9,6 +9,14 @@ from . import config, defaults
 from .security import now_iso
 
 
+class AppConnection(sqlite3.Connection):
+    def __exit__(self, exc_type, exc, tb):
+        try:
+            return super().__exit__(exc_type, exc, tb)
+        finally:
+            self.close()
+
+
 def ensure_directories() -> None:
     config.DATA_DIR.mkdir(parents=True, exist_ok=True)
     config.BACKUP_DIR.mkdir(parents=True, exist_ok=True)
@@ -26,9 +34,10 @@ def migrate_legacy_database() -> None:
 
 def connect() -> sqlite3.Connection:
     migrate_legacy_database()
-    conn = sqlite3.connect(config.DB_PATH)
+    conn = sqlite3.connect(config.DB_PATH, timeout=10, factory=AppConnection)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA busy_timeout = 10000")
     conn.execute("PRAGMA journal_mode = WAL")
     return conn
 
@@ -312,6 +321,63 @@ def create_backup(reason: str, created_by: str = "System") -> Path:
             (target.name, reason, created_by, now_iso()),
         )
     return target
+
+
+def backup_path(file_name: str) -> Path:
+    ensure_directories()
+    safe_name = Path(file_name).name
+    if safe_name != file_name or not safe_name.endswith(".db"):
+        raise ValueError("Ungültiger Backup-Dateiname.")
+    path = config.BACKUP_DIR / safe_name
+    if not path.exists() or not path.is_file():
+        raise ValueError("Backup wurde nicht gefunden.")
+    return path
+
+
+def backup_inventory(conn: sqlite3.Connection) -> list[dict]:
+    ensure_directories()
+    logged = rows(conn, "SELECT * FROM backup_log ORDER BY id DESC")
+    by_name = {item["file_name"]: item for item in logged}
+    inventory = []
+    for path in sorted(config.BACKUP_DIR.glob("*.db"), key=lambda item: item.stat().st_mtime, reverse=True):
+        item = dict(by_name.get(path.name, {}))
+        item.setdefault("id", None)
+        item.setdefault("file_name", path.name)
+        item.setdefault("reason", "external")
+        item.setdefault("created_by", "System")
+        item.setdefault("created_at", "")
+        item["size_bytes"] = path.stat().st_size
+        inventory.append(item)
+    return inventory
+
+
+def restore_backup(file_name: str, restored_by: str) -> Path:
+    source = backup_path(file_name)
+    with sqlite3.connect(source) as probe:
+        probe.execute("SELECT name FROM sqlite_master LIMIT 1").fetchone()
+    safety = create_backup("before-restore", restored_by)
+    for suffix in ("", "-wal", "-shm"):
+        path = Path(str(config.DB_PATH) + suffix)
+        if path.exists():
+            path.unlink()
+    shutil.copy2(source, config.DB_PATH)
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO backup_log (file_name, reason, created_by, created_at) VALUES (?, ?, ?, ?)",
+            (source.name, "restore", restored_by, now_iso()),
+        )
+    return safety
+
+
+def prune_backups(keep: int = 20) -> list[str]:
+    ensure_directories()
+    keep = max(1, min(keep, 200))
+    files = sorted(config.BACKUP_DIR.glob("*.db"), key=lambda item: item.stat().st_mtime, reverse=True)
+    removed = []
+    for path in files[keep:]:
+        path.unlink()
+        removed.append(path.name)
+    return removed
 
 
 def ensure_daily_backup() -> None:

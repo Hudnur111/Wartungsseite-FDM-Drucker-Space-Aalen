@@ -5,8 +5,11 @@ import html
 import io
 import json
 import mimetypes
+import re
 import ssl
-from datetime import datetime, timedelta, timezone
+import urllib.error
+import urllib.request
+from datetime import date, datetime, timedelta, timezone
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -14,7 +17,21 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import config
-from .database import audit, connect, create_backup, ensure_daily_backup, init_db, row, rows, set_setting, setting
+from .database import (
+    audit,
+    backup_inventory,
+    backup_path,
+    connect,
+    create_backup,
+    ensure_daily_backup,
+    init_db,
+    prune_backups,
+    restore_backup,
+    row,
+    rows,
+    set_setting,
+    setting,
+)
 from .security import (
     allowed_role,
     can_log_level,
@@ -32,6 +49,9 @@ from .security import (
     verify_password,
     verify_secret,
 )
+
+
+ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,63}$")
 
 
 def render_template(name: str, context: dict[str, str]) -> str:
@@ -66,15 +86,48 @@ class WartungHandler(BaseHTTPRequestHandler):
         print("%s - - [%s] %s" % (self.address_string(), self.log_date_time_string(), fmt % args))
 
     def client_ip(self) -> str:
+        if not config.TRUST_PROXY:
+            return self.client_address[0]
         forwarded = self.headers.get("X-Forwarded-For", "").split(",", 1)[0].strip()
         return forwarded or self.client_address[0]
 
+    def is_secure_request(self) -> bool:
+        if config.SSL_CERT and config.SSL_KEY:
+            return True
+        if not config.TRUST_PROXY:
+            return False
+        return self.headers.get("X-Forwarded-Proto", "").split(",", 1)[0].strip().lower() == "https"
+
+    def security_headers(self, content_type: str) -> dict[str, str]:
+        headers = {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+            "Referrer-Policy": "same-origin",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+        }
+        if content_type.startswith("text/html"):
+            headers["Content-Security-Policy"] = (
+                "default-src 'self'; "
+                "base-uri 'self'; "
+                "form-action 'self'; "
+                "frame-ancestors 'none'; "
+                "img-src 'self' data:; "
+                "script-src 'self'; "
+                "style-src 'self'"
+            )
+        return headers
+
     def send_bytes(self, body: bytes, content_type: str, status: HTTPStatus = HTTPStatus.OK, headers: dict[str, str] | None = None) -> None:
+        extra_headers = headers or {}
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
-        for key, value in (headers or {}).items():
+        for key, value in self.security_headers(content_type).items():
+            if key not in extra_headers:
+                self.send_header(key, value)
+        for key, value in extra_headers.items():
             self.send_header(key, value)
         self.end_headers()
         self.wfile.write(body)
@@ -94,7 +147,7 @@ class WartungHandler(BaseHTTPRequestHandler):
     def read_body(self) -> bytes:
         size = int(self.headers.get("Content-Length", "0"))
         if size < 1 or size > 200_000:
-            raise ValueError("Ungueltige Anfragegroesse.")
+            raise ValueError("Ungültige Anfragegröße.")
         return self.rfile.read(size)
 
     def read_json(self) -> dict:
@@ -112,10 +165,12 @@ class WartungHandler(BaseHTTPRequestHandler):
 
     def session_cookie(self, token: str, max_age: int | None = None) -> str:
         age = max_age if max_age is not None else config.SESSION_DAYS * 24 * 60 * 60
-        return f"{config.SESSION_COOKIE}={token}; Path=/; Max-Age={age}; HttpOnly; SameSite=Lax"
+        secure = "; Secure" if self.is_secure_request() else ""
+        return f"{config.SESSION_COOKIE}={token}; Path=/; Max-Age={age}; HttpOnly; SameSite=Lax{secure}"
 
     def auth_csrf_cookie(self, token: str) -> str:
-        return f"{config.AUTH_CSRF_COOKIE}={token}; Path=/; Max-Age=1800; HttpOnly; SameSite=Lax"
+        secure = "; Secure" if self.is_secure_request() else ""
+        return f"{config.AUTH_CSRF_COOKIE}={token}; Path=/; Max-Age=1800; HttpOnly; SameSite=Lax{secure}"
 
     def current_user(self) -> dict | None:
         token = self.cookie_value(config.SESSION_COOKIE)
@@ -154,6 +209,8 @@ class WartungHandler(BaseHTTPRequestHandler):
 
     def require_admin(self) -> dict | None:
         user = self.require_user(api=True)
+        if not user:
+            return None
         if not is_admin(user):
             self.send_json({"error": "Administratorrechte erforderlich."}, HTTPStatus.FORBIDDEN)
             return None
@@ -163,7 +220,7 @@ class WartungHandler(BaseHTTPRequestHandler):
         token = self.headers.get("X-CSRF-Token", "")
         if token and safe_compare(token, user.get("csrf_token", "")):
             return True
-        self.send_json({"error": "CSRF-Token ungueltig."}, HTTPStatus.FORBIDDEN)
+        self.send_json({"error": "CSRF-Token ungültig."}, HTTPStatus.FORBIDDEN)
         return False
 
     def verify_auth_csrf(self, form: dict[str, str]) -> bool:
@@ -235,7 +292,18 @@ class WartungHandler(BaseHTTPRequestHandler):
         if path == "/api/export.csv":
             if not self.require_user(api=True):
                 return
-            self.export_csv()
+            self.export_csv(query.get("month", [""])[0])
+            return
+        if path == "/api/export.pdf":
+            if not self.require_user(api=True):
+                return
+            self.export_pdf(query.get("month", [""])[0])
+            return
+        if path.startswith("/api/admin/backups/") and path.endswith("/download"):
+            user = self.require_admin()
+            if not user:
+                return
+            self.download_backup(path)
             return
         self.send_text("Nicht gefunden.", status=HTTPStatus.NOT_FOUND)
 
@@ -274,6 +342,9 @@ class WartungHandler(BaseHTTPRequestHandler):
             if path == "/api/notes":
                 self.create_note(user)
                 return
+            if path == "/api/profile":
+                self.update_profile(user)
+                return
             if path.startswith("/api/devices/") and path.endswith("/hours"):
                 self.update_hours(user, path)
                 return
@@ -295,6 +366,15 @@ class WartungHandler(BaseHTTPRequestHandler):
             if path == "/api/admin/backups":
                 self.manual_backup(user)
                 return
+            if path.startswith("/api/admin/backups/") and path.endswith("/restore"):
+                self.restore_backup_endpoint(user, path)
+                return
+            if path == "/api/admin/backups/prune":
+                self.prune_backups_endpoint(user)
+                return
+            if path == "/api/admin/notifications/due":
+                self.send_due_notifications(user)
+                return
             if path == "/api/admin/settings":
                 self.save_settings(user)
                 return
@@ -308,10 +388,21 @@ class WartungHandler(BaseHTTPRequestHandler):
         user = self.require_user(api=True)
         if not user or not self.verify_session_csrf(user):
             return
+        if not is_mentor_or_admin(user):
+            self.send_json({"error": "Mentor- oder Administratorstatus erforderlich."}, HTTPStatus.FORBIDDEN)
+            return
         if len(path) == 3 and path[0] == "api" and path[1] in {"logs", "notes"}:
             table = path[1]
-            item_id = int(path[2])
+            try:
+                item_id = int(path[2])
+            except ValueError:
+                self.send_json({"error": "Ungültige ID."}, HTTPStatus.BAD_REQUEST)
+                return
             with connect() as conn:
+                existing = row(conn, f"SELECT id FROM {table} WHERE id = ?", (item_id,))
+                if not existing:
+                    self.send_json({"error": "Eintrag nicht gefunden."}, HTTPStatus.NOT_FOUND)
+                    return
                 conn.execute(f"DELETE FROM {table} WHERE id = ?", (item_id,))
                 audit(conn, user, "delete", table, str(item_id), ip=self.client_ip())
             self.send_json({"ok": True})
@@ -338,12 +429,142 @@ class WartungHandler(BaseHTTPRequestHandler):
                 "devices": rows(conn, "SELECT * FROM devices ORDER BY sort_order, name"),
                 "tasks": rows(conn, "SELECT * FROM tasks ORDER BY sort_order, title"),
                 "audit": rows(conn, "SELECT * FROM audit_log ORDER BY id DESC LIMIT 80"),
-                "backups": rows(conn, "SELECT * FROM backup_log ORDER BY id DESC LIMIT 20"),
+                "backups": backup_inventory(conn),
                 "settings": {
                     "team_code_configured": bool(setting(conn, "team_code_hash") or env_or_file_team_code()),
                     "teams_webhook_url": setting(conn, "teams_webhook_url"),
                 },
             }
+
+    def month_filter(self, month: str) -> str:
+        month = month.strip()
+        if not month:
+            return ""
+        if not re.fullmatch(r"\d{4}-\d{2}", month):
+            raise ValueError("Monat muss im Format JJJJ-MM angegeben werden.")
+        return month
+
+    def due_items(self, conn) -> list[dict]:
+        devices = rows(conn, "SELECT * FROM devices WHERE active = 1 ORDER BY sort_order, name")
+        tasks = rows(conn, "SELECT * FROM tasks WHERE active = 1 ORDER BY sort_order, title")
+        logs = rows(conn, "SELECT * FROM logs ORDER BY id DESC")
+        latest = {}
+        for log in logs:
+            key = (log["device_id"], log["task_id"])
+            current = latest.get(key)
+            if not current or (log["done_on"], log["id"]) > (current["done_on"], current["id"]):
+                latest[key] = log
+        today = date.today()
+        items = []
+        for device in devices:
+            current_hours = device.get("current_print_hours")
+            if current_hours is None:
+                device_logs = [item["print_hours"] for item in logs if item["device_id"] == device["id"] and item["print_hours"] is not None]
+                current_hours = max(device_logs) if device_logs else None
+            for task in tasks:
+                if task["applies_to"] not in {"all", device["kind"]}:
+                    continue
+                if not task["cadence_days"] and not task["cadence_hours"]:
+                    continue
+                log = latest.get((device["id"], task["id"]))
+                status = None
+                detail = ""
+                if not log:
+                    status = "open"
+                    detail = "kein Eintrag"
+                elif task["cadence_hours"] and log["print_hours"] is not None and current_hours is not None:
+                    age = max(0, int(current_hours) - int(log["print_hours"]))
+                    remaining = int(task["cadence_hours"]) - age
+                    if age > int(task["cadence_hours"]):
+                        status = "due"
+                    elif remaining <= 25:
+                        status = "due-soon"
+                    detail = f"{age} h seit letzter Wartung"
+                elif task["cadence_hours"] and not task["cadence_days"]:
+                    status = "open"
+                    detail = "Druckstunden fehlen"
+                else:
+                    try:
+                        done = datetime.strptime(log["done_on"], "%Y-%m-%d").date()
+                    except (TypeError, ValueError):
+                        status = "open"
+                        detail = "Datum prüfen"
+                    else:
+                        age = (today - done).days
+                        remaining = int(task["cadence_days"]) - age
+                        if age > int(task["cadence_days"]):
+                            status = "due"
+                        elif remaining <= 7:
+                            status = "due-soon"
+                        detail = f"{age} Tage seit letzter Wartung"
+                if status in {"open", "due", "due-soon"}:
+                    items.append(
+                        {
+                            "device_id": device["id"],
+                            "device": device["name"],
+                            "task_id": task["id"],
+                            "task": task["title"],
+                            "level": task["level"],
+                            "status": status,
+                            "detail": detail,
+                            "last_done": log["done_on"] if log else "",
+                        }
+                    )
+        order = {"due": 0, "open": 1, "due-soon": 2}
+        return sorted(items, key=lambda item: (order.get(item["status"], 9), item["device"], item["task"]))
+
+    def teams_payload(self, items: list[dict]) -> dict:
+        if not items:
+            return {"text": "Wartung FDM Space: Aktuell sind keine Wartungen fällig."}
+        lines = ["Wartung FDM Space: Fällige und bald fällige Wartungen", ""]
+        for item in items[:25]:
+            label = {"due": "FÄLLIG", "open": "OFFEN", "due-soon": "BALD"}[item["status"]]
+            lines.append(f"- {label}: {item['device']} - {item['task']} ({item['detail']})")
+        if len(items) > 25:
+            lines.append(f"- plus {len(items) - 25} weitere Einträge")
+        return {"text": "\n".join(lines)}
+
+    def post_teams_webhook(self, webhook_url: str, payload: dict) -> None:
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        request = urllib.request.Request(webhook_url, data=data, headers={"Content-Type": "application/json"}, method="POST")
+        try:
+            with urllib.request.urlopen(request, timeout=8) as response:
+                if response.status >= 300:
+                    raise ValueError(f"Teams Webhook antwortete mit Status {response.status}.")
+        except urllib.error.URLError as exc:
+            raise ValueError(f"Teams Webhook konnte nicht erreicht werden: {exc.reason}") from exc
+
+    def pdf_bytes(self, lines: list[str]) -> bytes:
+        def pdf_text(value: str) -> str:
+            return str(value).replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+        pages = [lines[index:index + 42] for index in range(0, max(1, len(lines)), 42)]
+        objects = ["<< /Type /Catalog /Pages 2 0 R >>", "", "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"]
+        page_refs = []
+        for page_lines in pages:
+            content = ["BT", "/F1 11 Tf", "50 790 Td", "14 TL"]
+            for line in page_lines:
+                content.append(f"({pdf_text(line)}) Tj")
+                content.append("T*")
+            content.append("ET")
+            stream = "\n".join(content).encode("latin-1", "replace")
+            content_obj_num = len(objects) + 1
+            objects.append(f"<< /Length {len(stream)} >>\nstream\n{stream.decode('latin-1')}\nendstream")
+            page_obj_num = len(objects) + 1
+            objects.append(f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents {content_obj_num} 0 R >>")
+            page_refs.append(f"{page_obj_num} 0 R")
+        objects[1] = f"<< /Type /Pages /Kids [{' '.join(page_refs)}] /Count {len(page_refs)} >>"
+        output = bytearray(b"%PDF-1.4\n")
+        offsets = [0]
+        for number, obj in enumerate(objects, start=1):
+            offsets.append(len(output))
+            output.extend(f"{number} 0 obj\n{obj}\nendobj\n".encode("latin-1", "replace"))
+        xref = len(output)
+        output.extend(f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode("ascii"))
+        for offset in offsets[1:]:
+            output.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
+        output.extend(f"trailer << /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode("ascii"))
+        return bytes(output)
 
     def login_limited(self, conn, email: str) -> bool:
         cutoff = (datetime.now(timezone.utc) - timedelta(minutes=15)).replace(microsecond=0).isoformat()
@@ -354,10 +575,40 @@ class WartungHandler(BaseHTTPRequestHandler):
         ).fetchone()[0]
         return count >= 5
 
+    def valid_date(self, value: str, label: str, allow_future: bool = False) -> str:
+        try:
+            parsed = datetime.strptime(value, "%Y-%m-%d").date()
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{label} muss ein gültiges Datum sein.") from exc
+        if not allow_future and parsed > date.today():
+            raise ValueError(f"{label} darf nicht in der Zukunft liegen.")
+        return parsed.isoformat()
+
+    def valid_id(self, value: str, label: str) -> str:
+        normalized = value.strip().lower()
+        if not ID_RE.fullmatch(normalized):
+            raise ValueError(f"{label} darf nur Kleinbuchstaben, Zahlen, Bindestriche und Unterstriche enthalten.")
+        return normalized
+
+    def active_device(self, conn, device_id: str) -> dict:
+        device = row(conn, "SELECT * FROM devices WHERE id = ? AND active = 1", (device_id,))
+        if not device:
+            raise ValueError("Gerät nicht gefunden oder deaktiviert.")
+        return device
+
+    def active_task(self, conn, task_id: str) -> dict:
+        task = row(conn, "SELECT * FROM tasks WHERE id = ? AND active = 1", (task_id,))
+        if not task:
+            raise ValueError("Wartungspunkt nicht gefunden.")
+        return task
+
+    def task_applies_to_device(self, task: dict, device: dict) -> bool:
+        return task["applies_to"] == "all" or task["applies_to"] == device["kind"]
+
     def login(self) -> None:
         form = self.read_form()
         if not self.verify_auth_csrf(form):
-            self.auth_page("login", error="Sicherheits-Token ungueltig. Bitte erneut versuchen.")
+            self.auth_page("login", error="Sicherheits-Token ungültig. Bitte erneut versuchen.")
             return
         email = normalize_email(form.get("email", ""))
         password = form.get("password", "")
@@ -383,14 +634,14 @@ class WartungHandler(BaseHTTPRequestHandler):
     def register(self) -> None:
         form = self.read_form()
         if not self.verify_auth_csrf(form):
-            self.auth_page("register", error="Sicherheits-Token ungueltig. Bitte erneut versuchen.")
+            self.auth_page("register", error="Sicherheits-Token ungültig. Bitte erneut versuchen.")
             return
         display_name = form.get("display_name", "").strip()
         email = normalize_email(form.get("email", ""))
         password = form.get("password", "")
         code = form.get("team_code", "").strip()
         if len(display_name) < 2 or "@" not in email or len(password) < 8:
-            self.auth_page("register", error="Bitte Name, gueltige E-Mail und Passwort ab 8 Zeichen eingeben.")
+            self.auth_page("register", error="Bitte Name, gültige E-Mail und Passwort ab 8 Zeichen eingeben.")
             return
         with connect() as conn:
             if not verify_team_code(conn, code):
@@ -424,17 +675,18 @@ class WartungHandler(BaseHTTPRequestHandler):
         payload = self.read_json()
         device_id = str(payload.get("device_id", "")).strip()
         task_id = str(payload.get("task_id", "")).strip()
-        done_on = str(payload.get("done_on", "")).strip()
+        done_on = self.valid_date(str(payload.get("done_on", "")).strip(), "Datum")
         note = str(payload.get("note", "")).strip()[:1000]
         print_hours = self.optional_int(payload.get("print_hours"), "Druckstunden")
         if not device_id or not task_id or not done_on:
-            raise ValueError("Bitte Geraet, Wartungspunkt und Datum ausfuellen.")
+            raise ValueError("Bitte Gerät, Wartungspunkt und Datum ausfüllen.")
         with connect() as conn:
-            task = row(conn, "SELECT * FROM tasks WHERE id = ? AND active = 1", (task_id,))
-            if not task:
-                raise ValueError("Wartungspunkt nicht gefunden.")
+            device = self.active_device(conn, device_id)
+            task = self.active_task(conn, task_id)
+            if not self.task_applies_to_device(task, device):
+                raise ValueError("Dieser Wartungspunkt gehört nicht zu diesem Gerät.")
             if not can_log_level(user, task["level"]):
-                self.send_json({"error": "Fuer diesen Wartungspunkt ist Mentor- oder Administratorstatus erforderlich."}, HTTPStatus.FORBIDDEN)
+                self.send_json({"error": "Für diesen Wartungspunkt ist Mentor- oder Administratorstatus erforderlich."}, HTTPStatus.FORBIDDEN)
                 return
             conn.execute(
                 "INSERT INTO logs (device_id, task_id, done_on, print_hours, user_name, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -448,11 +700,12 @@ class WartungHandler(BaseHTTPRequestHandler):
     def create_note(self, user: dict) -> None:
         payload = self.read_json()
         device_id = str(payload.get("device_id", "")).strip()
-        note_date = str(payload.get("note_date", "")).strip()
+        note_date = self.valid_date(str(payload.get("note_date", "")).strip(), "Datum")
         text = str(payload.get("text", "")).strip()[:1000]
         if not device_id or not note_date or not text:
-            raise ValueError("Bitte Datum und Vermerk ausfuellen.")
+            raise ValueError("Bitte Datum und Vermerk ausfüllen.")
         with connect() as conn:
+            self.active_device(conn, device_id)
             conn.execute(
                 "INSERT INTO notes (device_id, note_date, user_name, text, created_at) VALUES (?, ?, ?, ?, ?)",
                 (device_id, note_date, user.get("display_name") or user["email"], text, now_iso()),
@@ -470,6 +723,7 @@ class WartungHandler(BaseHTTPRequestHandler):
         if hours is None:
             raise ValueError("Bitte Druckstunden angeben.")
         with connect() as conn:
+            self.active_device(conn, device_id)
             conn.execute("UPDATE devices SET current_print_hours = ?, updated_at = ? WHERE id = ?", (hours, now_iso(), device_id))
             audit(conn, user, "update", "device_hours", device_id, {"current_print_hours": hours}, self.client_ip())
         self.send_json({"ok": True})
@@ -484,6 +738,9 @@ class WartungHandler(BaseHTTPRequestHandler):
         if number < 1 or number > 5:
             raise ValueError("Tool muss zwischen 1 und 5 liegen.")
         with connect() as conn:
+            device = self.active_device(conn, device_id)
+            if device["kind"] != "xl5":
+                raise ValueError("Toolheads können nur für XL 5-Tool-Geräte gepflegt werden.")
             conn.execute(
                 """
                 INSERT INTO xl_tools (device_id, tool_number, nozzle_type, material, last_nozzle_change, issue_note, updated_by, updated_at)
@@ -510,6 +767,21 @@ class WartungHandler(BaseHTTPRequestHandler):
             audit(conn, user, "update", "xl_tool", f"{device_id}:{number}", payload, self.client_ip())
         self.send_json({"ok": True})
 
+    def update_profile(self, user: dict) -> None:
+        payload = self.read_json()
+        display_name = str(payload.get("display_name", "")).strip()[:120]
+        password = str(payload.get("password", ""))
+        if len(display_name) < 2:
+            raise ValueError("Bitte gib einen gültigen Namen ein.")
+        if password and len(password) < 8:
+            raise ValueError("Das neue Passwort muss mindestens 8 Zeichen haben.")
+        with connect() as conn:
+            conn.execute("UPDATE users SET display_name = ? WHERE id = ?", (display_name, user["id"]))
+            if password:
+                conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hash_password(password), user["id"]))
+            audit(conn, user, "update", "profile", str(user["id"]), {"password_changed": bool(password)}, self.client_ip())
+        self.send_json({"ok": True})
+
     def set_team_code(self, user: dict) -> None:
         if not is_admin(user):
             self.send_json({"error": "Administratorrechte erforderlich."}, HTTPStatus.FORBIDDEN)
@@ -528,11 +800,11 @@ class WartungHandler(BaseHTTPRequestHandler):
             self.send_json({"error": "Administratorrechte erforderlich."}, HTTPStatus.FORBIDDEN)
             return
         payload = self.read_json()
-        device_id = str(payload.get("id", "")).strip()
-        name = str(payload.get("name", "")).strip()
+        device_id = self.valid_id(str(payload.get("id", "")), "Geräte-ID")
+        name = str(payload.get("name", "")).strip()[:120]
         kind = str(payload.get("kind", "")).strip()
         if not device_id or not name or kind not in {"mini", "mk3_5", "xl5"}:
-            raise ValueError("Bitte ID, Name und gueltigen Typ angeben.")
+            raise ValueError("Bitte ID, Name und gültigen Typ angeben.")
         type_label = {"mini": "MINI+", "mk3_5": "MK3.5", "xl5": "XL 5-Tool"}[kind]
         with connect() as conn:
             conn.execute(
@@ -554,11 +826,12 @@ class WartungHandler(BaseHTTPRequestHandler):
             self.send_json({"error": "Administratorrechte erforderlich."}, HTTPStatus.FORBIDDEN)
             return
         payload = self.read_json()
-        task_id = str(payload.get("id", "")).strip()
-        title = str(payload.get("title", "")).strip()
+        task_id = self.valid_id(str(payload.get("id", "")), "Wartungspunkt-ID")
+        title = str(payload.get("title", "")).strip()[:160]
         level = str(payload.get("level", "")).strip()
-        if not task_id or not title or level not in {"B", "E", "M"}:
-            raise ValueError("Bitte ID, Titel und Level angeben.")
+        applies_to = str(payload.get("applies_to", "all")).strip()
+        if not task_id or not title or level not in {"B", "E", "M"} or applies_to not in {"all", "mini", "mk3_5", "xl5"}:
+            raise ValueError("Bitte ID, Titel, Gerätetyp und Level angeben.")
         with connect() as conn:
             conn.execute(
                 """
@@ -568,11 +841,11 @@ class WartungHandler(BaseHTTPRequestHandler):
                 """,
                 (
                     task_id,
-                    str(payload.get("applies_to", "all")).strip(),
+                    applies_to,
                     title,
-                    str(payload.get("details", "")).strip(),
+                    str(payload.get("details", "")).strip()[:1200],
                     level,
-                    str(payload.get("interval_text", "")).strip(),
+                    str(payload.get("interval_text", "")).strip()[:160],
                     self.optional_int(payload.get("cadence_days"), "Tage"),
                     self.optional_int(payload.get("cadence_hours"), "Stunden"),
                     now_iso(),
@@ -586,17 +859,46 @@ class WartungHandler(BaseHTTPRequestHandler):
         if not is_admin(admin_user):
             self.send_json({"error": "Administratorrechte erforderlich."}, HTTPStatus.FORBIDDEN)
             return
-        user_id = int(path.rsplit("/", 1)[-1])
+        try:
+            user_id = int(path.rsplit("/", 1)[-1])
+        except ValueError:
+            raise ValueError("Ungültige Benutzer-ID.")
         payload = self.read_json()
         with connect() as conn:
-            if "role" in payload:
-                role = str(payload["role"])
-                if not allowed_role(role):
-                    raise ValueError("Ungueltige Rolle.")
-                conn.execute("UPDATE users SET role = ? WHERE id = ?", (role, user_id))
+            target = row(conn, "SELECT id, role, is_active FROM users WHERE id = ?", (user_id,))
+            if not target:
+                self.send_json({"error": "Benutzer nicht gefunden."}, HTTPStatus.NOT_FOUND)
+                return
+            new_role = str(payload["role"]) if "role" in payload else target["role"]
             if "is_active" in payload:
-                conn.execute("UPDATE users SET is_active = ? WHERE id = ?", (1 if int(payload["is_active"]) else 0, user_id))
-            audit(conn, admin_user, "update", "user", str(user_id), payload, self.client_ip())
+                new_active = 1 if int(payload["is_active"]) else 0
+            else:
+                new_active = int(target["is_active"])
+            if not allowed_role(new_role):
+                raise ValueError("Ungültige Rolle.")
+            if user_id == admin_user["id"] and (new_role != config.ADMIN_ROLE or not new_active):
+                raise ValueError("Du kannst deinen eigenen Administratorzugang nicht entziehen.")
+            if target["role"] == config.ADMIN_ROLE and (new_role != config.ADMIN_ROLE or not new_active):
+                other_admins = conn.execute(
+                    "SELECT COUNT(*) FROM users WHERE id <> ? AND role = ? AND is_active = 1",
+                    (user_id, config.ADMIN_ROLE),
+                ).fetchone()[0]
+                if other_admins < 1:
+                    raise ValueError("Mindestens ein aktiver Administrator muss erhalten bleiben.")
+            if "role" in payload:
+                conn.execute("UPDATE users SET role = ? WHERE id = ?", (new_role, user_id))
+            if "is_active" in payload:
+                conn.execute("UPDATE users SET is_active = ? WHERE id = ?", (new_active, user_id))
+            if "password" in payload:
+                password = str(payload["password"])
+                if len(password) < 8:
+                    raise ValueError("Das neue Passwort muss mindestens 8 Zeichen haben.")
+                conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hash_password(password), user_id))
+                conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+            audit_details = {key: value for key, value in payload.items() if key != "password"}
+            if "password" in payload:
+                audit_details["password_changed"] = True
+            audit(conn, admin_user, "update", "user", str(user_id), audit_details, self.client_ip())
         self.send_json({"ok": True})
 
     def manual_backup(self, user: dict) -> None:
@@ -609,6 +911,50 @@ class WartungHandler(BaseHTTPRequestHandler):
             audit(conn, user, "create", "backup", path.name, ip=self.client_ip())
         self.send_json({"ok": True, "file": path.name})
 
+    def download_backup(self, path: str) -> None:
+        file_name = unquote(path.removeprefix("/api/admin/backups/").removesuffix("/download"))
+        backup = backup_path(file_name)
+        self.send_bytes(
+            backup.read_bytes(),
+            "application/octet-stream",
+            headers={"Content-Disposition": f'attachment; filename="{quote(backup.name)}"'},
+        )
+
+    def restore_backup_endpoint(self, user: dict, path: str) -> None:
+        if not is_admin(user):
+            self.send_json({"error": "Administratorrechte erforderlich."}, HTTPStatus.FORBIDDEN)
+            return
+        file_name = unquote(path.removeprefix("/api/admin/backups/").removesuffix("/restore"))
+        safety = restore_backup(file_name, user.get("display_name") or user["email"])
+        with connect() as conn:
+            audit(conn, user, "restore", "backup", file_name, {"safety_backup": safety.name}, self.client_ip())
+        self.send_json({"ok": True, "safety_backup": safety.name})
+
+    def prune_backups_endpoint(self, user: dict) -> None:
+        if not is_admin(user):
+            self.send_json({"error": "Administratorrechte erforderlich."}, HTTPStatus.FORBIDDEN)
+            return
+        payload = self.read_json()
+        keep = self.optional_int(payload.get("keep"), "Anzahl") or 20
+        removed = prune_backups(keep)
+        with connect() as conn:
+            audit(conn, user, "prune", "backup", "backups", {"keep": keep, "removed": removed}, self.client_ip())
+        self.send_json({"ok": True, "removed": removed})
+
+    def send_due_notifications(self, user: dict) -> None:
+        if not is_admin(user):
+            self.send_json({"error": "Administratorrechte erforderlich."}, HTTPStatus.FORBIDDEN)
+            return
+        with connect() as conn:
+            webhook_url = setting(conn, "teams_webhook_url")
+            if not webhook_url:
+                raise ValueError("Bitte zuerst eine Teams Webhook URL speichern.")
+            items = self.due_items(conn)
+            self.post_teams_webhook(webhook_url, self.teams_payload(items))
+            set_setting(conn, "teams_last_due_notification", now_iso())
+            audit(conn, user, "send", "notification", "teams_due", {"items": len(items)}, self.client_ip())
+        self.send_json({"ok": True, "sent": len(items)})
+
     def save_settings(self, user: dict) -> None:
         if not is_admin(user):
             self.send_json({"error": "Administratorrechte erforderlich."}, HTTPStatus.FORBIDDEN)
@@ -616,30 +962,94 @@ class WartungHandler(BaseHTTPRequestHandler):
         payload = self.read_json()
         with connect() as conn:
             if "teams_webhook_url" in payload:
-                set_setting(conn, "teams_webhook_url", str(payload["teams_webhook_url"]).strip())
-                audit(conn, user, "update", "setting", "teams_webhook_url", {"configured": bool(payload["teams_webhook_url"])}, self.client_ip())
+                webhook_url = str(payload["teams_webhook_url"]).strip()[:500]
+                parsed = urlparse(webhook_url)
+                if webhook_url and (parsed.scheme not in {"http", "https"} or not parsed.netloc):
+                    raise ValueError("Teams Webhook URL muss mit http:// oder https:// beginnen.")
+                set_setting(conn, "teams_webhook_url", webhook_url)
+                audit(conn, user, "update", "setting", "teams_webhook_url", {"configured": bool(webhook_url)}, self.client_ip())
         self.send_json({"ok": True})
 
-    def export_csv(self) -> None:
+    def export_csv(self, month: str = "") -> None:
+        month = self.month_filter(month)
+        month_clause_logs = "WHERE substr(l.done_on, 1, 7) = ?" if month else ""
+        month_clause_notes = "WHERE substr(n.note_date, 1, 7) = ?" if month else ""
+        params = (month, month) if month else ()
         with connect() as conn:
             data = rows(
                 conn,
-                """
-                SELECT 'wartung' AS typ, d.name AS geraet, l.done_on AS datum, t.title AS eintrag,
+                f"""
+                SELECT 'wartung' AS typ, d.name AS gerät, l.done_on AS datum, t.title AS eintrag,
                        l.print_hours AS druckstunden, l.user_name AS benutzer, l.note AS vermerk, l.created_at AS erstellt
                 FROM logs l JOIN devices d ON d.id = l.device_id JOIN tasks t ON t.id = l.task_id
+                {month_clause_logs}
                 UNION ALL
                 SELECT 'vermerk', d.name, n.note_date, 'Allgemeiner Vermerk', NULL, n.user_name, n.text, n.created_at
                 FROM notes n JOIN devices d ON d.id = n.device_id
-                ORDER BY geraet, erstellt
+                {month_clause_notes}
+                ORDER BY gerät, erstellt
                 """,
+                params,
             )
         output = io.StringIO()
-        writer = csv.DictWriter(output, fieldnames=["typ", "geraet", "datum", "eintrag", "druckstunden", "benutzer", "vermerk", "erstellt"], delimiter=";")
+        writer = csv.DictWriter(output, fieldnames=["typ", "gerät", "datum", "eintrag", "druckstunden", "benutzer", "vermerk", "erstellt"], delimiter=";")
         writer.writeheader()
-        writer.writerows(data)
+        writer.writerows([{key: self.csv_cell(value) for key, value in item.items()} for item in data])
         body = output.getvalue().encode("utf-8-sig")
-        self.send_bytes(body, "text/csv; charset=utf-8", headers={"Content-Disposition": 'attachment; filename="wartung_fdm_space.csv"'})
+        suffix = f"_{month}" if month else ""
+        self.send_bytes(body, "text/csv; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="wartung_fdm_space{suffix}.csv"'})
+
+    def export_pdf(self, month: str = "") -> None:
+        month = self.month_filter(month)
+        with connect() as conn:
+            due = self.due_items(conn)
+            if month:
+                entries = rows(
+                    conn,
+                    """
+                    SELECT d.name AS gerät, l.done_on AS datum, t.title AS titel, l.user_name AS benutzer, l.note AS note
+                    FROM logs l JOIN devices d ON d.id = l.device_id JOIN tasks t ON t.id = l.task_id
+                    WHERE substr(l.done_on, 1, 7) = ?
+                    ORDER BY d.name, l.done_on
+                    """,
+                    (month,),
+                )
+            else:
+                entries = rows(
+                    conn,
+                    """
+                    SELECT d.name AS gerät, l.done_on AS datum, t.title AS titel, l.user_name AS benutzer, l.note AS note
+                    FROM logs l JOIN devices d ON d.id = l.device_id JOIN tasks t ON t.id = l.task_id
+                    ORDER BY d.name, l.done_on DESC
+                    LIMIT 120
+                    """,
+                )
+        title = f"Wartung FDM Space Bericht {month}" if month else "Wartung FDM Space Bericht"
+        lines = [title, f"Erstellt: {now_iso()}", "", "Fälligkeiten:"]
+        if due:
+            for item in due[:30]:
+                lines.append(f"- {item['status']}: {item['device']} - {item['task']} ({item['detail']})")
+        else:
+            lines.append("- Keine offenen Fälligkeiten")
+        lines.extend(["", "Wartungseinträge:"])
+        if entries:
+            for item in entries[:120]:
+                note = f" - {item['note']}" if item["note"] else ""
+                lines.append(f"- {item['datum']} | {item['gerät']} | {item['titel']} | {item['benutzer']}{note}")
+        else:
+            lines.append("- Keine Einträge im gewählten Zeitraum")
+        suffix = f"_{month}" if month else ""
+        self.send_bytes(
+            self.pdf_bytes(lines),
+            "application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="wartung_fdm_space{suffix}.pdf"'},
+        )
+
+    def csv_cell(self, value):
+        if value is None:
+            return ""
+        text = str(value)
+        return "'" + text if text[:1] in {"=", "+", "-", "@", "\t", "\r"} else text
 
     def optional_int(self, value, label: str) -> int | None:
         if value in (None, ""):
@@ -664,7 +1074,7 @@ def main() -> None:
         server.socket = context.wrap_socket(server.socket, server_side=True)
         scheme = "https"
     host_label = "127.0.0.1" if config.HOST in {"", "0.0.0.0"} else config.HOST
-    print(f"Wartung FDM Space laeuft auf {scheme}://{host_label}:{config.PORT}")
+    print(f"Wartung FDM Space läuft auf {scheme}://{host_label}:{config.PORT}")
     server.serve_forever()
 
 

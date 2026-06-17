@@ -1,12 +1,12 @@
-# GitHub Pages — Wartung FDM Space Portal
+# Wartung FDM Space Portal
 
-Diese Seite ist das **Release Portal und die Dokumentation** für die Wartungs-App.
+Diese Seite ist das statische Release-Portal und die Dokumentation für die Wartungs-App.
 
 ## App-URL
 
 Die vollständige Wartungs-App läuft auf Railway:
 
-👉 **[wartungsseite-fdm-drucker-space-aalen-production.up.railway.app](https://wartungsseite-fdm-drucker-space-aalen-production.up.railway.app/)**
+[wartungsseite-fdm-drucker-space-aalen-production.up.railway.app](https://wartungsseite-fdm-drucker-space-aalen-production.up.railway.app/)
 
 ## Was diese Seite ist
 
@@ -14,41 +14,24 @@ Die vollständige Wartungs-App läuft auf Railway:
 - Release-Informationen und Features
 - Betriebsanleitung für lokales Setup
 
-## Was diese Seite NICHT ist
+## Was diese Seite nicht ist
 
-GitHub Pages ist eine **statische Website**. Die echte App braucht:
+GitHub Pages ist eine statische Website. Die echte App braucht ein Python-Backend, eine SQLite-Datenbank, Login-Sessions und API-Endpunkte mit Schreibzugriff.
 
-- Python-Backend
-- SQLite-Datenbank
-- Login & Sessions
-- API-Endpunkte mit Schreibzugriff
-
-Diese Funktionen können nur auf einem echter Server laufen (wie Railway, Render, etc.).
+Diese Funktionen laufen auf einem Server wie Railway, Render oder einem lokalen Rechner im Netzwerk.
 
 ## Lokale Installation
 
-Wenn du die App selbst hosten oder entwickeln möchtest:
-
 ```powershell
-# Repository clonen
-git clone https://github.com/your-org/wartung-fdm-space.git
-cd wartung-fdm-space
-
-# App starten
+git clone https://github.com/Hudnur111/Wartungsseite-FDM-Drucker-Space-Aalen.git
+cd Wartungsseite-FDM-Drucker-Space-Aalen
 python run.py
 ```
 
-Dann öffne im Browser: `http://127.0.0.1:8080`
+Danach im Browser öffnen: `http://127.0.0.1:8080`
 
-## GitHub Pages Einstellungen
+## GitHub Pages
 
-Falls du dieses Portal selbst hosten möchtest:
+Das Portal wird aus dem Ordner `docs/` veröffentlicht:
 
-1. In GitHub: `Settings` → `Pages`
-2. `Source`: `Deploy from a branch`
-3. `Branch`: `main`
-4. `Folder`: `/docs`
-5. Speichern
-
-Dann wird diese Seite automatisch unter `https://username.github.io/repository` veröffentlicht.
-
+`https://hudnur111.github.io/Wartungsseite-FDM-Drucker-Space-Aalen/`

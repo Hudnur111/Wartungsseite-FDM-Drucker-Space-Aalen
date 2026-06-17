@@ -8,21 +8,32 @@
 </head>
 <body>
   <header class="topbar">
-    <div>
+    <div class="brand-lockup">
       <p class="eyebrow">SFZ / FDM Space</p>
       <h1>Wartung</h1>
     </div>
+    <nav id="mainMenu" class="main-menu" aria-label="Hauptmenü">
+      <button class="menu-button active" data-view="maintenance" type="button">Wartung</button>
+      <button class="menu-button" data-view="logbook" type="button">Protokoll</button>
+      <button id="adminToggle" class="menu-button hidden" type="button">Admin</button>
+    </nav>
     <div class="top-actions">
       <div class="user-chip"><span>Angemeldet</span><strong id="currentUser">-</strong></div>
-      <button id="adminToggle" class="button ghost hidden" type="button">Admin</button>
-      <a class="button ghost" href="/api/export.csv">CSV</a>
+      <input id="exportMonth" class="compact-input" type="month" aria-label="Export-Monat">
+      <a id="exportCsvButton" class="button ghost" href="/api/export.csv">CSV</a>
+      <a id="exportPdfButton" class="button ghost" href="/api/export.pdf">PDF</a>
       <button id="logoutButton" class="button ghost" type="button">Abmelden</button>
     </div>
   </header>
 
   <main class="layout">
     <aside class="sidebar">
-      <div class="side-head"><span>Geraete</span><span id="deviceCount">0</span></div>
+      <div class="side-head"><span>Geräte</span><span id="deviceCount">0</span></div>
+      <label class="device-search">
+        <span class="sr-only">Gerät suchen</span>
+        <input id="deviceSearch" placeholder="Gerät suchen">
+      </label>
+      <div id="fleetHealth" class="fleet-health"></div>
       <nav id="deviceList"></nav>
     </aside>
 
@@ -31,7 +42,7 @@
       <section id="deviceHeader" class="device-header"></section>
       <section id="overviewStats" class="stats-grid"></section>
 
-      <section class="entry-panel">
+      <section class="entry-panel app-view" data-view="maintenance">
         <form id="hoursForm" class="hours-form">
           <label>Aktuelle Druckstunden<input id="currentHoursInput" type="number" min="0" step="1" placeholder="z.B. 520"></label>
           <button class="button ghost" type="submit">Druckstunden aktualisieren</button>
@@ -40,40 +51,46 @@
           <label>Wartungspunkt<select id="taskSelect" required></select></label>
           <label>Datum<input id="doneOn" type="date" required></label>
           <label>Druckstunden<input id="printHours" type="number" min="0" step="1" placeholder="optional"></label>
-          <label class="wide">Vermerk<input id="logNote" placeholder="Material, Auffaelligkeit, Ersatzteil, Messwert ..."></label>
+          <label class="wide">Vermerk<input id="logNote" placeholder="Material, Auffälligkeit, Ersatzteil, Messwert ..."></label>
           <button class="button primary" type="submit">Eintrag speichern</button>
         </form>
       </section>
 
-      <section class="tasks-section">
+      <section class="tasks-section app-view" data-view="maintenance">
         <div class="section-title">
           <h2>Wartungsplan</h2>
           <span id="taskSummary"></span>
         </div>
         <div class="filters-row">
           <label>Suche<input id="searchInput" placeholder="Drucker, Wartung, Vermerk ..."></label>
-          <label>Status<select id="statusFilter"><option value="">Alle</option><option value="due">Faellig/offen</option><option value="due-soon">Bald</option><option value="ok">Ok</option><option value="optional">Bei Bedarf</option></select></label>
+          <label>Status<select id="statusFilter"><option value="">Alle</option><option value="due">Fällig/offen</option><option value="due-soon">Bald</option><option value="ok">Ok</option><option value="optional">Bei Bedarf</option></select></label>
           <label>Level<select id="levelFilter"><option value="">Alle</option><option value="B">B</option><option value="E">E</option><option value="M">M</option></select></label>
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Taetigkeit</th><th>Level</th><th>Intervall</th><th>Letzter Eintrag</th><th>Status</th></tr></thead>
+            <thead><tr><th>Tätigkeit</th><th>Level</th><th>Intervall</th><th>Letzter Eintrag</th><th>Status</th></tr></thead>
             <tbody id="taskRows"></tbody>
           </table>
         </div>
+        <div id="taskCards" class="task-cards"></div>
       </section>
 
-      <section id="xlToolsPanel" class="xl-tools-panel hidden">
+      <section class="timeline-panel app-view" data-view="maintenance">
+        <div class="section-title"><h2>Fälligkeits-Timeline</h2><span>Nächste Prioritäten</span></div>
+        <div id="maintenanceTimeline" class="timeline-list"></div>
+      </section>
+
+      <section id="xlToolsPanel" class="xl-tools-panel app-view hidden" data-view="maintenance">
         <div class="section-title"><h2>XL Toolheads</h2><span>Tool 1-5</span></div>
         <div id="xlToolsGrid" class="xl-tools-grid"></div>
       </section>
 
-      <section class="notes-grid">
+      <section class="notes-grid app-view" data-view="logbook">
         <div class="notes-panel">
           <div class="section-title"><h2>Vermerke</h2></div>
           <form id="noteForm">
             <label>Datum<input id="noteDate" type="date" required></label>
-            <label class="wide">Vermerk<input id="noteText" required placeholder="Allgemeiner Vermerk zum Geraet"></label>
+            <label class="wide">Vermerk<input id="noteText" required placeholder="Allgemeiner Vermerk zum Gerät"></label>
             <button class="button primary" type="submit">Vermerk speichern</button>
           </form>
           <div id="noteList" class="note-list"></div>
@@ -85,21 +102,55 @@
         </div>
       </section>
 
-      <section id="adminPanel" class="admin-panel hidden">
-        <div class="section-title"><h2>Administration</h2><span id="adminSummary"></span></div>
+      <dialog id="adminPanel" class="admin-panel admin-dialog hidden">
+        <div class="admin-modal-shell">
+        <div class="section-title admin-modal-title">
+          <div>
+            <p class="eyebrow">Kontrollzentrum</p>
+            <h2>Profil und Administration</h2>
+          </div>
+          <div class="admin-title-actions">
+            <span id="adminSummary"></span>
+            <button id="adminCloseButton" class="button ghost" type="button">Schließen</button>
+          </div>
+        </div>
+        <div id="adminTabs" class="admin-tabs">
+          <button class="menu-button active" data-admin-tab="profile" type="button">Profil</button>
+          <button class="menu-button" data-admin-tab="users" type="button">Benutzer</button>
+          <button class="menu-button" data-admin-tab="devices" type="button">Drucker</button>
+          <button class="menu-button" data-admin-tab="tasks" type="button">Wartung</button>
+          <button class="menu-button" data-admin-tab="backups" type="button">Backups</button>
+          <button class="menu-button" data-admin-tab="notifications" type="button">Meldungen</button>
+          <button class="menu-button" data-admin-tab="audit" type="button">Audit</button>
+        </div>
         <div class="admin-grid">
-          <article class="admin-card">
+          <article class="admin-card profile-card wide-admin" data-admin-panel="profile">
+            <h3>Profil-Einstellungen</h3>
+            <form id="profileForm" class="stack-form">
+              <label>Anzeigename<input id="profileName" autocomplete="name" required minlength="2"></label>
+              <label>E-Mail<input id="profileEmail" type="email" readonly></label>
+              <label>Neues Passwort<input id="profilePassword" type="password" autocomplete="new-password" minlength="8" placeholder="Optional"></label>
+              <label>Passwort wiederholen<input id="profilePasswordConfirm" type="password" autocomplete="new-password" minlength="8" placeholder="Optional"></label>
+              <button class="button primary" type="submit">Profil speichern</button>
+            </form>
+          </article>
+          <article class="admin-card" data-admin-panel="users">
             <h3>Benutzer</h3>
+            <div class="filters-row compact-filters">
+              <label>Suche<input id="userSearch" placeholder="Name oder E-Mail"></label>
+              <label>Rolle<select id="userRoleFilter"><option value="">Alle</option><option>Administrator</option><option>Mentor</option><option>Benutzer</option></select></label>
+              <label>Status<select id="userStatusFilter"><option value="">Alle</option><option value="1">Aktiv</option><option value="0">Deaktiviert</option></select></label>
+            </div>
             <div id="adminUsers"></div>
           </article>
-          <article class="admin-card">
+          <article class="admin-card" data-admin-panel="users">
             <h3>Teamleiter-Code</h3>
             <form id="teamCodeForm" class="stack-form">
               <label>Neuer Code<input id="teamCodeInput" type="password" minlength="6" required></label>
               <button class="button primary" type="submit">Code speichern</button>
             </form>
           </article>
-          <article class="admin-card">
+          <article class="admin-card" data-admin-panel="devices">
             <h3>Drucker verwalten</h3>
             <form id="deviceForm" class="stack-form">
               <input id="deviceId" placeholder="ID, z.B. mini-6" required>
@@ -110,7 +161,7 @@
             </form>
             <div id="adminDevices" class="admin-list"></div>
           </article>
-          <article class="admin-card">
+          <article class="admin-card" data-admin-panel="tasks">
             <h3>Wartungspunkt verwalten</h3>
             <form id="taskForm" class="stack-form">
               <input id="taskId" placeholder="ID" required>
@@ -124,27 +175,50 @@
               <button class="button primary" type="submit">Wartungspunkt speichern</button>
             </form>
           </article>
-          <article class="admin-card">
+          <article class="admin-card" data-admin-panel="backups">
             <h3>Backups</h3>
-            <button id="backupButton" class="button primary" type="button">Backup jetzt erstellen</button>
+            <div class="admin-row-controls stretch">
+              <button id="backupButton" class="button primary" type="button">Backup jetzt erstellen</button>
+              <input id="backupKeep" type="number" min="1" max="200" value="20" aria-label="Backups behalten">
+              <button id="backupPruneButton" class="button ghost" type="button">Aufräumen</button>
+            </div>
             <div id="backupList" class="admin-list"></div>
           </article>
-          <article class="admin-card">
+          <article class="admin-card" data-admin-panel="notifications">
             <h3>Benachrichtigungen</h3>
             <form id="notificationForm" class="stack-form">
               <input id="teamsWebhook" placeholder="Teams Webhook URL optional">
               <button class="button primary" type="submit">Speichern</button>
             </form>
-            <p class="muted">Faellige Wartungen werden in der App hervorgehoben. Teams-Webhooks sind optional konfigurierbar.</p>
+            <button id="sendDueButton" class="button ghost" type="button">Fälligkeiten an Teams senden</button>
+            <p class="muted">Fällige Wartungen werden in der App hervorgehoben. Teams-Webhooks sind optional konfigurierbar.</p>
           </article>
-          <article class="admin-card wide-admin">
+          <article class="admin-card wide-admin" data-admin-panel="audit">
             <h3>Audit-Log</h3>
+            <div class="filters-row compact-filters">
+              <label>Suche<input id="auditSearch" placeholder="Nutzer, Aktion, Gerät"></label>
+              <label>Aktion<input id="auditActionFilter" placeholder="z.B. update"></label>
+              <label>Entität<input id="auditEntityFilter" placeholder="z.B. user"></label>
+            </div>
             <div id="auditList" class="audit-list"></div>
           </article>
         </div>
-      </section>
+        </div>
+      </dialog>
     </section>
   </main>
+
+  <div id="toastStack" class="toast-stack" aria-live="polite" aria-atomic="false"></div>
+  <dialog id="confirmDialog" class="confirm-dialog">
+    <form method="dialog">
+      <h2 id="confirmTitle">Eintrag löschen?</h2>
+      <p id="confirmText">Diese Aktion kann nicht rückgängig gemacht werden.</p>
+      <div class="dialog-actions">
+        <button id="confirmCancel" class="button ghost" value="cancel" type="submit">Abbrechen</button>
+        <button id="confirmOk" class="button danger" value="ok" type="submit">Löschen</button>
+      </div>
+    </form>
+  </dialog>
 
   <script src="/static/app.js"></script>
 </body>
