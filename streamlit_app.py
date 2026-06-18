@@ -31,6 +31,14 @@ from app.database import ensure_daily_backup, init_db  # noqa: E402
 from app.security import is_admin, is_mentor_or_admin  # noqa: E402
 
 
+OPEN_APP_USER = {
+    "id": 0,
+    "email": "open-mode@local",
+    "display_name": "FDM Space",
+    "role": config.ADMIN_ROLE,
+}
+
+
 st.markdown(
     """
     <style>
@@ -49,7 +57,7 @@ st.markdown(
       }
       html, body, [class*="css"] { font-family: Inter, "Segoe UI", system-ui, sans-serif; }
       .stApp { background: var(--fdm-bg); color: var(--fdm-text); }
-      .block-container { max-width: 1420px; padding: 2rem 3rem 3rem; }
+      .block-container { max-width: 1440px; padding: 1.6rem 2.4rem 3rem; }
       [data-testid="stHeader"] { background: transparent; }
       [data-testid="stToolbar"], #MainMenu, footer { display: none !important; }
       [data-testid="stSidebar"] {
@@ -69,11 +77,6 @@ st.markdown(
         transition: background .15s ease;
       }
       [data-testid="stSidebar"] [role="radiogroup"] label:hover { background: rgba(255,255,255,.08); }
-      [data-testid="stSidebar"] button {
-        background: rgba(255,255,255,.06) !important;
-        border-color: rgba(255,255,255,.25) !important;
-        border-radius: 8px !important;
-      }
       h1, h2, h3 { color: var(--fdm-text); letter-spacing: 0; }
       div[data-testid="stForm"] {
         background: var(--fdm-panel);
@@ -105,58 +108,21 @@ st.markdown(
         margin-bottom: .25rem;
         text-transform: uppercase;
       }
-      .fdm-hero h1, .fdm-brand h1 { font-size: 2.35rem; line-height: 1.05; margin: 0; }
-      .fdm-hero p, .fdm-brand p { color: var(--fdm-muted); margin: .45rem 0 0; max-width: 780px; }
-      .fdm-auth-wrap {
-        max-width: 1060px;
-        margin: 7vh auto 0;
-      }
-      .fdm-auth-head {
-        margin-bottom: 1.1rem;
-      }
-      .fdm-auth-head h1 {
-        font-size: 2.15rem;
-        line-height: 1.08;
-        margin: 0;
-      }
-      .fdm-auth-head p {
-        color: var(--fdm-muted);
-        margin: .42rem 0 0;
-      }
-      .fdm-brand {
-        background: linear-gradient(145deg, #101d23 0%, #16313b 62%, #1f6b7d 100%);
-        border: 1px solid rgba(255,255,255,.1);
-        border-radius: 8px;
-        box-shadow: 0 18px 46px rgba(16,29,35,.16);
-        min-height: 358px;
-        padding: 1.45rem;
-      }
-      .fdm-brand .fdm-eyebrow { color: #9fd4df; }
-      .fdm-brand h1 { color: #ffffff; }
-      .fdm-brand p { color: #c6d7dd; }
-      .fdm-auth-kpis {
-        display: grid;
-        gap: .55rem;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        margin-top: 1.35rem;
-      }
-      .fdm-mini-stat {
-        background: rgba(255,255,255,.08);
-        border: 1px solid rgba(255,255,255,.13);
-        border-radius: 8px;
-        padding: .75rem;
-      }
-      .fdm-mini-stat strong { color: #ffffff; display: block; font-size: 1.05rem; }
-      .fdm-mini-stat span { color: #bad0d7; display: block; font-size: .8rem; margin-top: .12rem; }
-      .fdm-auth-note {
+      .fdm-hero h1 { font-size: 2.35rem; line-height: 1.05; margin: 0; }
+      .fdm-hero p { color: var(--fdm-muted); margin: .45rem 0 0; max-width: 780px; }
+      .fdm-mode {
+        align-items: center;
         background: #ffffff;
         border: 1px solid var(--fdm-line);
         border-radius: 8px;
-        box-shadow: 0 18px 46px rgba(28,48,58,.08);
-        padding: 1rem 1.05rem 1.1rem;
+        display: flex;
+        gap: .7rem;
+        justify-content: space-between;
+        margin-bottom: 1rem;
+        padding: .75rem .9rem;
       }
-      .fdm-auth-note h2 { font-size: 1.18rem; margin: 0; }
-      .fdm-auth-note p { color: var(--fdm-muted); margin: .25rem 0 0; }
+      .fdm-mode strong { color: var(--fdm-text); }
+      .fdm-mode span { color: var(--fdm-muted); font-size: .9rem; }
       .fdm-metrics {
         display: grid;
         gap: .9rem;
@@ -222,27 +188,11 @@ st.markdown(
       .fdm-badge.soon { background: #f8efd9; color: var(--fdm-amber); }
       .fdm-badge.active { background: #e5f2ec; color: var(--fdm-green); }
       .fdm-badge.inactive { background: #eceff1; color: #60717a; }
-      .fdm-card-grid {
-        display: grid;
-        gap: .9rem;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        margin: .8rem 0 1.2rem;
-      }
-      .fdm-card {
-        background: var(--fdm-panel);
-        border: 1px solid var(--fdm-line);
-        border-radius: 8px;
-        box-shadow: 0 10px 28px rgba(28,48,58,.045);
-        padding: 1rem;
-      }
-      .fdm-card h3 { font-size: 1.02rem; margin: 0 0 .25rem; }
-      .fdm-card p { color: var(--fdm-muted); margin: 0; }
       @media (max-width: 900px) {
         .block-container { padding: 1rem; }
-        .fdm-metrics, .fdm-card-grid, .fdm-auth-kpis { grid-template-columns: 1fr; }
-        .fdm-auth-wrap { margin-top: 1rem; }
-        .fdm-brand { min-height: auto; }
-        .fdm-hero h1, .fdm-brand h1 { font-size: 1.75rem; }
+        .fdm-metrics { grid-template-columns: 1fr; }
+        .fdm-hero h1 { font-size: 1.75rem; }
+        .fdm-mode { align-items: flex-start; flex-direction: column; }
       }
     </style>
     """,
@@ -258,14 +208,6 @@ def boot_database() -> bool:
 
 
 boot_database()
-
-
-def user() -> dict | None:
-    return st.session_state.get("user")
-
-
-def set_user(value: dict | None) -> None:
-    st.session_state["user"] = value
 
 
 def rerun() -> None:
@@ -298,6 +240,21 @@ def status_label(value: str) -> str:
 
 def badge(value: str, kind: str) -> str:
     return f"<span class='fdm-badge {esc(kind)}'>{esc(value)}</span>"
+
+
+def render_open_mode_notice() -> None:
+    st.markdown(
+        """
+        <div class="fdm-mode">
+          <div>
+            <strong>Offener Wartungsmodus</strong><br>
+            <span>Authentifizierung ist bewusst entfernt. Zugriffsschutz wird später wieder ergänzt.</span>
+          </div>
+          <span>Interner Admin-Kontext</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_page_header(title: str, eyebrow: str, subtitle: str = "") -> None:
@@ -369,112 +326,15 @@ def selected_by_label(items: list[dict], label: str, field: str = "name") -> dic
     return next((item for item in items if item.get(field) == label), None)
 
 
-def render_reset_page(token: str) -> None:
-    render_page_header("Passwort neu setzen", "Zugang", "Lege ein neues Passwort für deinen Wartungszugang fest.")
-    with st.form("reset-password"):
-        password = st.text_input("Neues Passwort", type="password")
-        confirm = st.text_input("Passwort wiederholen", type="password")
-        submitted = st.form_submit_button("Passwort speichern", type="primary")
-    if submitted:
-        error = svc.reset_password(token, password, confirm)
-        if error:
-            st.error(error)
-        else:
-            st.query_params.clear()
-            st.success("Passwort wurde aktualisiert. Bitte melde dich neu an.")
-            set_user(None)
-            rerun()
-
-
-def render_auth() -> None:
-    setup_available = svc.first_user_setup_available()
-    team_code_ready = svc.team_code_is_configured()
-    st.markdown("<div class='fdm-auth-wrap'>", unsafe_allow_html=True)
-    left, right = st.columns([0.95, 1.05], gap="large")
-    with left:
-        st.markdown(
-            """
-            <section class="fdm-brand">
-              <div class="fdm-eyebrow">SFZ / FDM Space</div>
-              <h1>Wartung FDM Space</h1>
-              <p>Wartungsstände, Druckstunden und Nachweise für die FDM-Druckerflotte an einem Ort.</p>
-              <div class="fdm-auth-kpis">
-                <div class="fdm-mini-stat"><strong>Rollen</strong><span>Admin, Mentor, Benutzer</span></div>
-                <div class="fdm-mini-stat"><strong>Nachweise</strong><span>CSV und PDF Export</span></div>
-                <div class="fdm-mini-stat"><strong>Wartung</strong><span>Fälligkeiten und Historie</span></div>
-                <div class="fdm-mini-stat"><strong>Geräte</strong><span>MINI+, MK3.5, XL</span></div>
-              </div>
-            </section>
-            """,
-            unsafe_allow_html=True,
-        )
-    with right:
-        st.markdown(
-            """
-            <section class="fdm-auth-note">
-              <div class="fdm-eyebrow">Zugang</div>
-              <h2>Anmelden oder Konto einrichten</h2>
-              <p>Wenn noch kein aktiver Administrator existiert, wird das nächste registrierte Konto als Administrator angelegt.</p>
-            </section>
-            """,
-            unsafe_allow_html=True,
-        )
-        login_tab, register_tab, forgot_tab = st.tabs(["Anmelden", "Registrieren", "Passwort vergessen"])
-        with login_tab:
-            with st.form("login-form"):
-                email = st.text_input("E-Mail", autocomplete="email")
-                password = st.text_input("Passwort", type="password")
-                submitted = st.form_submit_button("Anmelden", type="primary")
-            if submitted:
-                authenticated, error = svc.authenticate(email, password)
-                if error:
-                    st.error(error)
-                else:
-                    set_user(authenticated)
-                    rerun()
-
-        with register_tab:
-            if setup_available:
-                st.success("Ersteinrichtung aktiv: Dieses Konto wird als Administrator angelegt.")
-            elif team_code_ready:
-                st.info("Registrierung ist mit Teamleiter-Code freigeschaltet.")
-            else:
-                st.warning("Registrierung ist gesperrt. Ein Administrator muss zuerst einen Teamleiter-Code setzen.")
-            with st.form("register-form"):
-                display_name = st.text_input("Name")
-                email = st.text_input("E-Mail", key="register-email")
-                password = st.text_input("Passwort", type="password", key="register-password")
-                code = "" if setup_available else st.text_input("Teamleiter-Code", type="password")
-                submitted = st.form_submit_button("Konto erstellen", type="primary")
-            if submitted:
-                created, error = svc.register(display_name, email, password, code)
-                if error:
-                    st.error(error)
-                else:
-                    set_user(created)
-                    rerun()
-
-        with forgot_tab:
-            with st.form("forgot-form"):
-                email = st.text_input("E-Mail", key="forgot-email")
-                submitted = st.form_submit_button("Reset-Link senden", type="primary")
-            if submitted:
-                st.info(svc.request_password_reset(email))
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
 def render_sidebar(current_user: dict) -> str:
     st.sidebar.markdown("## Wartung")
-    st.sidebar.caption(f"{current_user['display_name']} · {current_user['role']}")
-    pages = ["Übersicht", "Wartung erfassen", "Drucker & Tools", "Historie & Export", "Profil"]
+    st.sidebar.caption("Offener Modus · Auth später")
+    pages = ["Übersicht", "Wartung erfassen", "Drucker & Tools", "Historie & Export"]
     if is_admin(current_user):
         pages.append("Admin")
     page = st.sidebar.radio("Bereich", pages, label_visibility="collapsed")
     st.sidebar.divider()
     st.sidebar.caption(f"Datenbank: {svc.data_path_label()}")
-    if st.sidebar.button("Abmelden", use_container_width=True):
-        set_user(None)
-        rerun()
     return page
 
 
@@ -484,6 +344,7 @@ def render_dashboard(state: dict) -> None:
         "Betriebsstatus",
         "Schneller Überblick über aktive Drucker, offene Wartungen und die neuesten Einträge.",
     )
+    render_open_mode_notice()
     due = state["due"]
     due_count = sum(1 for item in due if item["status"] == "due")
     open_count = sum(1 for item in due if item["status"] == "open")
@@ -692,56 +553,6 @@ def render_history(current_user: dict, state: dict) -> None:
                 handle_action(lambda: svc.delete_entry(current_user, table, int(item_id)), "Eintrag gelöscht.")
 
 
-def render_profile(current_user: dict) -> None:
-    render_page_header("Profil", "Konto", "Name und Passwort des angemeldeten Benutzers verwalten.")
-    with st.form("profile"):
-        display_name = st.text_input("Name", value=current_user["display_name"])
-        st.text_input("E-Mail", value=current_user["email"], disabled=True)
-        password = st.text_input("Neues Passwort", type="password")
-        confirm = st.text_input("Passwort wiederholen", type="password")
-        submitted = st.form_submit_button("Profil speichern", type="primary")
-    if submitted:
-        if password != confirm:
-            st.error("Die Passwörter stimmen nicht überein.")
-        else:
-            try:
-                set_user(svc.update_profile(current_user, display_name, password))
-            except ValueError as exc:
-                st.error(str(exc))
-            else:
-                success_then_rerun("Profil gespeichert.")
-
-
-def render_admin_users(current_user: dict, admin_state: dict) -> None:
-    render_section("Benutzer", "Rollen, Aktivstatus und Passwörter verwalten.")
-    render_table(
-        [
-            {
-                "ID": item["id"],
-                "Name": item["display_name"],
-                "E-Mail": item["email"],
-                "Rolle": item["role"],
-                "Status_html": badge("Aktiv" if item["is_active"] else "Inaktiv", "active" if item["is_active"] else "inactive"),
-                "Letzter Login": item["last_login_at"],
-            }
-            for item in admin_state["users"]
-        ],
-        [("ID", "ID"), ("Name", "Name"), ("E-Mail", "E-Mail"), ("Rolle", "Rolle"), ("Status", "Status_html"), ("Letzter Login", "Letzter Login")],
-    )
-    if not admin_state["users"]:
-        return
-    labels = [f"{item['display_name']} · {item['email']} · ID {item['id']}" for item in admin_state["users"]]
-    selected = st.selectbox("Benutzer auswählen", labels)
-    target = admin_state["users"][labels.index(selected)]
-    with st.form("admin-user"):
-        role = st.selectbox("Rolle", list(config.ROLES), index=list(config.ROLES).index(target["role"]))
-        active = st.checkbox("Aktiv", value=bool(target["is_active"]))
-        password = st.text_input("Neues Passwort", type="password")
-        submitted = st.form_submit_button("Benutzer aktualisieren")
-    if submitted:
-        handle_action(lambda: svc.update_user(current_user, target["id"], role, active, password), "Benutzer aktualisiert.")
-
-
 def render_admin_devices(current_user: dict, admin_state: dict) -> None:
     render_section("Drucker verwalten")
     render_table(
@@ -813,12 +624,6 @@ def render_admin_backups(current_user: dict, admin_state: dict) -> None:
 
 def render_admin_settings(current_user: dict, admin_state: dict) -> None:
     render_section("Einstellungen")
-    st.write("Teamleiter-Code:", "gesetzt" if admin_state["settings"]["team_code_configured"] else "nicht gesetzt")
-    with st.form("team-code"):
-        code = st.text_input("Neuer Teamleiter-Code", type="password")
-        submitted = st.form_submit_button("Code speichern")
-    if submitted:
-        handle_action(lambda: svc.set_team_code(current_user, code), "Teamleiter-Code gespeichert.")
     with st.form("teams-webhook"):
         webhook = st.text_input("Teams Webhook URL", value=admin_state["settings"]["teams_webhook_url"])
         submitted = st.form_submit_button("Webhook speichern")
@@ -829,34 +634,21 @@ def render_admin_settings(current_user: dict, admin_state: dict) -> None:
 
 
 def render_admin(current_user: dict) -> None:
-    render_page_header("Admin", "Verwaltung", "Benutzer, Drucker, Wartungspunkte, Backups und Einstellungen.")
+    render_page_header("Admin", "Verwaltung", "Drucker, Wartungspunkte, Backups und Einstellungen.")
     admin_state = svc.load_admin_state()
-    tabs = st.tabs(["Benutzer", "Drucker", "Wartung", "Backups", "Einstellungen"])
+    tabs = st.tabs(["Drucker", "Wartung", "Backups", "Einstellungen"])
     with tabs[0]:
-        render_admin_users(current_user, admin_state)
-    with tabs[1]:
         render_admin_devices(current_user, admin_state)
-    with tabs[2]:
+    with tabs[1]:
         render_admin_tasks(current_user, admin_state)
-    with tabs[3]:
+    with tabs[2]:
         render_admin_backups(current_user, admin_state)
-    with tabs[4]:
+    with tabs[3]:
         render_admin_settings(current_user, admin_state)
 
 
 def main() -> None:
-    reset_token = st.query_params.get("reset_token", "")
-    if isinstance(reset_token, list):
-        reset_token = reset_token[0] if reset_token else ""
-    if reset_token:
-        render_reset_page(str(reset_token))
-        return
-
-    current_user = user()
-    if not current_user:
-        render_auth()
-        return
-
+    current_user = OPEN_APP_USER
     page = render_sidebar(current_user)
     state = svc.load_state()
     if page == "Übersicht":
@@ -867,8 +659,6 @@ def main() -> None:
         render_devices(current_user, state)
     elif page == "Historie & Export":
         render_history(current_user, state)
-    elif page == "Profil":
-        render_profile(current_user)
     elif page == "Admin" and is_admin(current_user):
         render_admin(current_user)
 
