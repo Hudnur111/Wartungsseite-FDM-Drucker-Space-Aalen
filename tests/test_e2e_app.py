@@ -58,7 +58,7 @@ class AppE2ETests(unittest.TestCase):
             }
         )
         self.process = subprocess.Popen(
-            [sys.executable, "run.py"],
+            [sys.executable, "-m", "app.server"],
             cwd=ROOT,
             env=env,
             stdout=subprocess.DEVNULL,

@@ -15,6 +15,8 @@ Main file path: streamlit_app.py
 Python version: 3.12
 ```
 
+`run.py` ist als Kompatibilitäts-Einstieg ebenfalls auf Streamlit umgestellt. Falls Streamlit Cloud versehentlich noch `run.py` startet, läuft trotzdem die Streamlit-App und nicht mehr der alte HTTP-Server.
+
 Die App liest Streamlit-Secrets im TOML-Format und übernimmt Root-Level-Secrets als Umgebungsvariablen. Für den ersten Admin und die Registrierung kannst du z. B. eintragen:
 
 ```toml

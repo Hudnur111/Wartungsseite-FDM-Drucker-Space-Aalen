@@ -37,6 +37,8 @@ jobs:
             app/reports.py \
             app/server.py \
             app/streamlit_services.py \
+            run.py \
+            wartung_app.py \
             streamlit_app.py
 
       - name: Run test suite
