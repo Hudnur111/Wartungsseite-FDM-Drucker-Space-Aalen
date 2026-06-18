@@ -32,6 +32,8 @@ WARTUNG_STATE_RECENT_NOTE_LIMIT = "500"
 
 Nach dem ersten erfolgreichen Login die drei `WARTUNG_BOOTSTRAP_ADMIN_*` Secrets wieder entfernen, sonst wird das Admin-Passwort bei jedem Start erneut auf diesen Wert gesetzt.
 
+Wenn noch kein aktiver Administrator existiert, ist kein Teamleiter-Code nötig: Das nächste registrierte Konto wird automatisch `Administrator`. Danach ist Registrierung wieder über den Teamleiter-Code geschützt.
+
 Für Passwort-Reset per E-Mail zusätzlich SMTP-Secrets setzen:
 
 ```toml

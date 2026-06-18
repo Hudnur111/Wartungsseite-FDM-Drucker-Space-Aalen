@@ -56,6 +56,20 @@ def team_code_is_configured() -> bool:
         return bool(setting(conn, "team_code_hash") or env_or_file_team_code())
 
 
+def active_admin_count() -> int:
+    with connect() as conn:
+        return int(
+            conn.execute(
+                "SELECT COUNT(*) FROM users WHERE role = ? AND is_active = 1",
+                (config.ADMIN_ROLE,),
+            ).fetchone()[0]
+        )
+
+
+def first_user_setup_available() -> bool:
+    return active_admin_count() == 0
+
+
 def verify_team_code(conn, code: str) -> bool:
     stored_hash = setting(conn, "team_code_hash")
     if stored_hash:
@@ -106,21 +120,28 @@ def register(display_name: str, email: str, password: str, team_code: str) -> tu
         return None, "Das Passwort muss mindestens 8 Zeichen haben."
 
     with connect() as conn:
-        if not verify_team_code(conn, team_code.strip()):
+        first_admin = int(
+            conn.execute(
+                "SELECT COUNT(*) FROM users WHERE role = ? AND is_active = 1",
+                (config.ADMIN_ROLE,),
+            ).fetchone()[0]
+        ) == 0
+        role = config.ADMIN_ROLE if first_admin else config.USER_ROLE
+        if not first_admin and not verify_team_code(conn, team_code.strip()):
             return None, "Der Teamleiter-Code ist falsch oder noch nicht gesetzt."
         try:
             cursor = conn.execute(
                 """
                 INSERT INTO users (email, display_name, password_hash, role, is_active, created_at)
-                VALUES (?, ?, ?, 'Benutzer', 1, ?)
+                VALUES (?, ?, ?, ?, 1, ?)
                 """,
-                (email, display_name, hash_password(password), now_iso()),
+                (email, display_name, hash_password(password), role, now_iso()),
             )
         except Exception:
             return None, "Diese E-Mail ist bereits registriert."
         user_id = int(cursor.lastrowid)
-        audit(conn, {"id": user_id, "display_name": display_name, "email": email}, "register", "user", str(user_id), ip=STREAMLIT_IP)
-        return {"id": user_id, "email": email, "display_name": display_name, "role": config.USER_ROLE}, ""
+        audit(conn, {"id": user_id, "display_name": display_name, "email": email}, "register", "user", str(user_id), {"first_admin": first_admin, "role": role}, STREAMLIT_IP)
+        return {"id": user_id, "email": email, "display_name": display_name, "role": role}, ""
 
 
 def password_reset_limited(conn, user_id: int) -> bool:

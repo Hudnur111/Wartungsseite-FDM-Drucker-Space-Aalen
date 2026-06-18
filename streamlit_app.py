@@ -51,7 +51,7 @@ st.markdown(
       .stApp { background: var(--fdm-bg); color: var(--fdm-text); }
       .block-container { max-width: 1420px; padding: 2rem 3rem 3rem; }
       [data-testid="stHeader"] { background: transparent; }
-      [data-testid="stToolbar"] { opacity: .45; }
+      [data-testid="stToolbar"], #MainMenu, footer { display: none !important; }
       [data-testid="stSidebar"] {
         background: #101d23;
         border-right: 1px solid rgba(255,255,255,.08);
@@ -107,14 +107,56 @@ st.markdown(
       }
       .fdm-hero h1, .fdm-brand h1 { font-size: 2.35rem; line-height: 1.05; margin: 0; }
       .fdm-hero p, .fdm-brand p { color: var(--fdm-muted); margin: .45rem 0 0; max-width: 780px; }
-      .fdm-brand {
-        background: var(--fdm-panel);
-        border: 1px solid var(--fdm-line);
-        border-left: 5px solid var(--fdm-teal);
-        border-radius: 8px;
-        box-shadow: 0 14px 35px rgba(28,48,58,.07);
-        padding: 1.35rem;
+      .fdm-auth-wrap {
+        max-width: 1060px;
+        margin: 7vh auto 0;
       }
+      .fdm-auth-head {
+        margin-bottom: 1.1rem;
+      }
+      .fdm-auth-head h1 {
+        font-size: 2.15rem;
+        line-height: 1.08;
+        margin: 0;
+      }
+      .fdm-auth-head p {
+        color: var(--fdm-muted);
+        margin: .42rem 0 0;
+      }
+      .fdm-brand {
+        background: linear-gradient(145deg, #101d23 0%, #16313b 62%, #1f6b7d 100%);
+        border: 1px solid rgba(255,255,255,.1);
+        border-radius: 8px;
+        box-shadow: 0 18px 46px rgba(16,29,35,.16);
+        min-height: 358px;
+        padding: 1.45rem;
+      }
+      .fdm-brand .fdm-eyebrow { color: #9fd4df; }
+      .fdm-brand h1 { color: #ffffff; }
+      .fdm-brand p { color: #c6d7dd; }
+      .fdm-auth-kpis {
+        display: grid;
+        gap: .55rem;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-top: 1.35rem;
+      }
+      .fdm-mini-stat {
+        background: rgba(255,255,255,.08);
+        border: 1px solid rgba(255,255,255,.13);
+        border-radius: 8px;
+        padding: .75rem;
+      }
+      .fdm-mini-stat strong { color: #ffffff; display: block; font-size: 1.05rem; }
+      .fdm-mini-stat span { color: #bad0d7; display: block; font-size: .8rem; margin-top: .12rem; }
+      .fdm-auth-note {
+        background: #ffffff;
+        border: 1px solid var(--fdm-line);
+        border-radius: 8px;
+        box-shadow: 0 18px 46px rgba(28,48,58,.08);
+        padding: 1rem 1.05rem 1.1rem;
+      }
+      .fdm-auth-note h2 { font-size: 1.18rem; margin: 0; }
+      .fdm-auth-note p { color: var(--fdm-muted); margin: .25rem 0 0; }
       .fdm-metrics {
         display: grid;
         gap: .9rem;
@@ -197,7 +239,9 @@ st.markdown(
       .fdm-card p { color: var(--fdm-muted); margin: 0; }
       @media (max-width: 900px) {
         .block-container { padding: 1rem; }
-        .fdm-metrics, .fdm-card-grid { grid-template-columns: 1fr; }
+        .fdm-metrics, .fdm-card-grid, .fdm-auth-kpis { grid-template-columns: 1fr; }
+        .fdm-auth-wrap { margin-top: 1rem; }
+        .fdm-brand { min-height: auto; }
         .fdm-hero h1, .fdm-brand h1 { font-size: 1.75rem; }
       }
     </style>
@@ -343,19 +387,38 @@ def render_reset_page(token: str) -> None:
 
 
 def render_auth() -> None:
-    left, right = st.columns([0.9, 1.1], gap="large")
+    setup_available = svc.first_user_setup_available()
+    team_code_ready = svc.team_code_is_configured()
+    st.markdown("<div class='fdm-auth-wrap'>", unsafe_allow_html=True)
+    left, right = st.columns([0.95, 1.05], gap="large")
     with left:
         st.markdown(
             """
             <section class="fdm-brand">
               <div class="fdm-eyebrow">SFZ / FDM Space</div>
               <h1>Wartung FDM Space</h1>
-              <p>Professionelle Verwaltung für Drucker, Druckstunden, Vermerke und nachvollziehbare Wartungshistorie.</p>
+              <p>Wartungsstände, Druckstunden und Nachweise für die FDM-Druckerflotte an einem Ort.</p>
+              <div class="fdm-auth-kpis">
+                <div class="fdm-mini-stat"><strong>Rollen</strong><span>Admin, Mentor, Benutzer</span></div>
+                <div class="fdm-mini-stat"><strong>Nachweise</strong><span>CSV und PDF Export</span></div>
+                <div class="fdm-mini-stat"><strong>Wartung</strong><span>Fälligkeiten und Historie</span></div>
+                <div class="fdm-mini-stat"><strong>Geräte</strong><span>MINI+, MK3.5, XL</span></div>
+              </div>
             </section>
             """,
             unsafe_allow_html=True,
         )
     with right:
+        st.markdown(
+            """
+            <section class="fdm-auth-note">
+              <div class="fdm-eyebrow">Zugang</div>
+              <h2>Anmelden oder Konto einrichten</h2>
+              <p>Wenn noch kein aktiver Administrator existiert, wird das nächste registrierte Konto als Administrator angelegt.</p>
+            </section>
+            """,
+            unsafe_allow_html=True,
+        )
         login_tab, register_tab, forgot_tab = st.tabs(["Anmelden", "Registrieren", "Passwort vergessen"])
         with login_tab:
             with st.form("login-form"):
@@ -371,15 +434,17 @@ def render_auth() -> None:
                     rerun()
 
         with register_tab:
-            if svc.team_code_is_configured():
+            if setup_available:
+                st.success("Ersteinrichtung aktiv: Dieses Konto wird als Administrator angelegt.")
+            elif team_code_ready:
                 st.info("Registrierung ist mit Teamleiter-Code freigeschaltet.")
             else:
-                st.warning("Registrierung ist gesperrt, bis ein Teamleiter-Code gesetzt wurde.")
+                st.warning("Registrierung ist gesperrt. Ein Administrator muss zuerst einen Teamleiter-Code setzen.")
             with st.form("register-form"):
                 display_name = st.text_input("Name")
                 email = st.text_input("E-Mail", key="register-email")
                 password = st.text_input("Passwort", type="password", key="register-password")
-                code = st.text_input("Teamleiter-Code", type="password")
+                code = "" if setup_available else st.text_input("Teamleiter-Code", type="password")
                 submitted = st.form_submit_button("Konto erstellen", type="primary")
             if submitted:
                 created, error = svc.register(display_name, email, password, code)
@@ -395,6 +460,7 @@ def render_auth() -> None:
                 submitted = st.form_submit_button("Reset-Link senden", type="primary")
             if submitted:
                 st.info(svc.request_password_reset(email))
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_sidebar(current_user: dict) -> str:
