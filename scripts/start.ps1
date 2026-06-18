@@ -1,5 +1,7 @@
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
-streamlit run .\streamlit_app.py --server.address 127.0.0.1 --server.port 8501
+if (-not $env:WARTUNG_HOST) { $env:WARTUNG_HOST = "127.0.0.1" }
+if (-not $env:WARTUNG_PORT) { $env:WARTUNG_PORT = "8080" }
+python .\run.py
 

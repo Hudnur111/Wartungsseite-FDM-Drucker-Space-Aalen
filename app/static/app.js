@@ -8,7 +8,7 @@ const state = {
   xlTools: [],
   selectedDeviceId: null,
   view: "maintenance",
-  adminTab: "profile",
+  adminTab: "devices",
   admin: null,
 };
 
@@ -184,7 +184,7 @@ function confirmAction(title, text) {
 
 function openAdminModal() {
   if (!state.admin || state.user?.role !== "Administrator") return;
-  state.adminTab = state.adminTab || "profile";
+  state.adminTab = state.adminTab || "devices";
   els.adminPanel.classList.remove("hidden");
   renderAdmin();
   if (els.adminPanel.showModal && !els.adminPanel.open) {
@@ -368,12 +368,10 @@ function renderHeader(device, tasks) {
         <span class="pill">${escapeHtml(device.type_label || device.kind)}</span>
         <span class="pill">Mentoren: ${escapeHtml(device.mentors || "-")}</span>
         <span class="pill">${tasks.length} Wartungspunkte</span>
+        <span class="pill">${logsForDevice(device.id).length} Einträge</span>
+        <span class="pill">${notesForDevice(device.id).length} Vermerke</span>
+        ${hours !== null ? `<span class="pill">${escapeHtml(hours)} h</span>` : ""}
       </div>
-    </div>
-    <div class="device-meta">
-      <span class="pill">${logsForDevice(device.id).length} Einträge</span>
-      <span class="pill">${notesForDevice(device.id).length} Vermerke</span>
-      ${hours !== null ? `<span class="pill">${escapeHtml(hours)} h</span>` : ""}
     </div>
   `;
   els.currentHoursInput.value = hours ?? "";
@@ -654,7 +652,7 @@ function render() {
   if (!device) return;
   const tasks = tasksForDevice(device);
   state.selectedDeviceId = device.id;
-  els.currentUser.textContent = `${state.user.display_name} (${state.user.role})`;
+  els.currentUser.textContent = "Interner Betrieb";
   renderFleetHealth();
   renderDevices();
   renderHeader(device, tasks);
@@ -813,7 +811,7 @@ els.doneOn.value = today;
 els.noteDate.value = today;
 els.doneOn.max = today;
 els.noteDate.max = today;
-els.logoutButton.addEventListener("click", (event) => runAction(logout, "", event.currentTarget));
+els.logoutButton?.addEventListener("click", (event) => runAction(logout, "", event.currentTarget));
 els.adminToggle.addEventListener("click", openAdminModal);
 els.adminCloseButton.addEventListener("click", closeAdminModal);
 els.adminPanel.addEventListener("click", (event) => {

@@ -10,5 +10,7 @@ if (-not $env:WARTUNG_SSL_CERT -or -not $env:WARTUNG_SSL_KEY) {
   exit 1
 }
 
-streamlit run .\streamlit_app.py --server.address 0.0.0.0 --server.port 8501 --server.sslCertFile "$env:WARTUNG_SSL_CERT" --server.sslKeyFile "$env:WARTUNG_SSL_KEY"
+if (-not $env:WARTUNG_HOST) { $env:WARTUNG_HOST = "0.0.0.0" }
+if (-not $env:WARTUNG_PORT) { $env:WARTUNG_PORT = "8443" }
+python .\run.py
 

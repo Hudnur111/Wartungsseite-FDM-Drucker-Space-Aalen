@@ -74,6 +74,15 @@ def html_message(message: str, kind: str) -> str:
     return f'<div class="auth-message {kind}">{html.escape(message)}</div>'
 
 
+OPEN_APP_USER = {
+    "id": 0,
+    "email": "open-mode@local",
+    "display_name": "FDM Space",
+    "role": config.ADMIN_ROLE,
+    "csrf_token": "open-mode",
+}
+
+
 def team_code_is_configured(conn) -> bool:
     return bool(setting(conn, "team_code_hash") or env_or_file_team_code())
 
@@ -186,39 +195,10 @@ class WartungHandler(BaseHTTPRequestHandler):
         return f"{config.AUTH_CSRF_COOKIE}={token}; Path=/; Max-Age=1800; HttpOnly; SameSite=Lax{secure}"
 
     def current_user(self) -> dict | None:
-        token = self.cookie_value(config.SESSION_COOKIE)
-        if not token:
-            return None
-        token_hash = hash_token(token)
-        with connect() as conn:
-            item = conn.execute(
-                """
-                SELECT u.id, u.email, u.display_name, u.role, u.is_active, s.csrf_token, s.expires_at
-                FROM sessions s JOIN users u ON u.id = s.user_id
-                WHERE s.token_hash = ? AND s.expires_at > ?
-                """,
-                (token_hash, now_iso()),
-            ).fetchone()
-            if not item or not item["is_active"]:
-                return None
-            conn.execute("UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?", (now_iso(), token_hash))
-            return {
-                "id": item["id"],
-                "email": item["email"],
-                "display_name": item["display_name"],
-                "role": item["role"],
-                "csrf_token": item["csrf_token"],
-            }
+        return dict(OPEN_APP_USER)
 
     def require_user(self, api: bool = False) -> dict | None:
-        user = self.current_user()
-        if user:
-            return user
-        if api:
-            self.send_json({"error": "Nicht angemeldet."}, HTTPStatus.UNAUTHORIZED)
-        else:
-            self.redirect("/login")
-        return None
+        return self.current_user()
 
     def require_admin(self) -> dict | None:
         user = self.require_user(api=True)
@@ -230,11 +210,7 @@ class WartungHandler(BaseHTTPRequestHandler):
         return user
 
     def verify_session_csrf(self, user: dict) -> bool:
-        token = self.headers.get("X-CSRF-Token", "")
-        if token and safe_compare(token, user.get("csrf_token", "")):
-            return True
-        self.send_json({"error": "CSRF-Token ungültig."}, HTTPStatus.FORBIDDEN)
-        return False
+        return True
 
     def verify_auth_csrf(self, form: dict[str, str]) -> bool:
         cookie_token = self.cookie_value(config.AUTH_CSRF_COOKIE)
@@ -255,32 +231,6 @@ class WartungHandler(BaseHTTPRequestHandler):
             conn.execute("UPDATE users SET last_login_at = ? WHERE id = ?", (now_iso(), user_id))
         return token
 
-    def auth_page(self, mode: str, message: str = "", error: str = "", reset_token: str = "") -> None:
-        csrf = new_token()
-        with connect() as conn:
-            hint = "Registrierung ist freigeschaltet." if team_code_is_configured(conn) else "Registrierung ist gesperrt, bis ein Teamleiter-Code gesetzt wurde."
-        titles = {
-            "login": "Anmelden - Wartung FDM Space",
-            "register": "Registrieren - Wartung FDM Space",
-            "forgot": "Passwort vergessen - Wartung FDM Space",
-            "reset": "Passwort neu setzen - Wartung FDM Space",
-        }
-        body = render_template(
-            "auth.html",
-            {
-                "TITLE": titles.get(mode, titles["login"]),
-                "LOGIN_ACTIVE": "active" if mode == "login" else "",
-                "REGISTER_ACTIVE": "active" if mode == "register" else "",
-                "FORGOT_ACTIVE": "active" if mode == "forgot" else "",
-                "RESET_ACTIVE": "active" if mode == "reset" else "",
-                "MESSAGE_BLOCK": html_message(message, "success") + html_message(error, "error"),
-                "CSRF_TOKEN": html.escape(csrf),
-                "REGISTER_HINT": html.escape(hint),
-                "RESET_TOKEN": html.escape(reset_token),
-            },
-        )
-        self.send_text(body, "text/html; charset=utf-8", headers={"Set-Cookie": self.auth_csrf_cookie(csrf)})
-
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path
@@ -288,31 +238,8 @@ class WartungHandler(BaseHTTPRequestHandler):
         if path == "/healthz":
             self.send_json({"ok": True, "service": "wartung-fdm-space"})
             return
-        if path == "/auth/login":
-            self.redirect("/login")
-            return
-        if path == "/auth/register":
-            self.redirect("/register")
-            return
-        if path == "/auth/forgot-password":
-            self.redirect("/forgot-password")
-            return
-        if path in {"/login", "/register", "/forgot-password"}:
-            if self.current_user():
-                self.redirect("/")
-                return
-            mode = {"login": "login", "register": "register", "forgot-password": "forgot"}[path.strip("/")]
-            self.auth_page(mode, query.get("message", [""])[0], query.get("error", [""])[0])
-            return
-        if path == "/reset-password":
-            if self.current_user():
-                self.redirect("/")
-                return
-            token = query.get("token", [""])[0]
-            if not self.password_reset_user(token):
-                self.auth_page("forgot", error="Der Link ist ungültig oder abgelaufen. Bitte fordere einen neuen Link an.")
-                return
-            self.auth_page("reset", reset_token=token)
+        if path in {"/auth/login", "/auth/register", "/auth/forgot-password", "/login", "/register", "/forgot-password", "/reset-password"}:
+            self.redirect("/")
             return
         if path == "/":
             if not self.require_user():
@@ -374,6 +301,9 @@ class WartungHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         path = urlparse(self.path).path
         try:
+            if path.startswith("/auth/"):
+                self.send_json({"ok": True, "auth": "disabled"})
+                return
             if path == "/auth/login":
                 self.login()
                 return

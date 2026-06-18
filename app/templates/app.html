@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Wartung FDM Space</title>
-  <meta name="description" content="Interne Wartungsverwaltung für FDM-Drucker, Druckstunden, Audit-Log, Backups und Rollen.">
+  <meta name="description" content="Interne Wartungsverwaltung für FDM-Drucker, Druckstunden, Audit-Log und Backups.">
   <meta name="theme-color" content="#1f6b7d">
   <link rel="stylesheet" href="/static/styles.css">
 </head>
@@ -12,7 +12,7 @@
   <header class="topbar">
     <div class="brand-lockup">
       <p class="eyebrow">SFZ / FDM Space</p>
-      <h1>Wartung</h1>
+      <h1>FDM Wartung</h1>
     </div>
     <nav id="mainMenu" class="main-menu" aria-label="Hauptmenü">
       <button class="menu-button active" data-view="maintenance" aria-current="page" type="button">Wartung</button>
@@ -20,11 +20,10 @@
       <button id="adminToggle" class="menu-button hidden" type="button">Admin</button>
     </nav>
     <div class="top-actions">
-      <div class="user-chip"><span>Angemeldet</span><strong id="currentUser">-</strong></div>
+      <div class="user-chip"><span>Modus</span><strong id="currentUser">Interner Betrieb</strong></div>
       <input id="exportMonth" class="compact-input" type="month" aria-label="Export-Monat">
       <a id="exportCsvButton" class="button ghost" href="/api/export.csv">CSV</a>
       <a id="exportPdfButton" class="button ghost" href="/api/export.pdf">PDF</a>
-      <button id="logoutButton" class="button ghost" type="button">Abmelden</button>
     </div>
   </header>
 
@@ -117,9 +116,7 @@
           </div>
         </div>
         <div id="adminTabs" class="admin-tabs">
-          <button class="menu-button active" data-admin-tab="profile" type="button">Profil</button>
-          <button class="menu-button" data-admin-tab="users" type="button">Benutzer</button>
-          <button class="menu-button" data-admin-tab="devices" type="button">Drucker</button>
+          <button class="menu-button active" data-admin-tab="devices" type="button">Drucker</button>
           <button class="menu-button" data-admin-tab="tasks" type="button">Wartung</button>
           <button class="menu-button" data-admin-tab="backups" type="button">Backups</button>
           <button class="menu-button" data-admin-tab="notifications" type="button">Meldungen</button>
