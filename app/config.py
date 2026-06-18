@@ -18,10 +18,26 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _running_on_railway() -> bool:
+    return any(
+        os.environ.get(name)
+        for name in (
+            "RAILWAY_ENVIRONMENT_NAME",
+            "RAILWAY_PROJECT_ID",
+            "RAILWAY_SERVICE_ID",
+            "RAILWAY_DEPLOYMENT_ID",
+        )
+    )
+
+
 ROOT_DIR = Path(__file__).resolve().parents[1]
 APP_DIR = ROOT_DIR / "app"
-DATA_DIR = Path(os.environ.get("WARTUNG_DATA_DIR", ROOT_DIR / "data")).expanduser()
-BACKUP_DIR = Path(os.environ.get("WARTUNG_BACKUP_DIR", ROOT_DIR / "backups")).expanduser()
+ON_RAILWAY = _running_on_railway()
+RAILWAY_VOLUME_MOUNT_PATH = os.environ.get("RAILWAY_VOLUME_MOUNT_PATH", "").strip()
+DEFAULT_DATA_DIR = RAILWAY_VOLUME_MOUNT_PATH or ROOT_DIR / "data"
+
+DATA_DIR = Path(os.environ.get("WARTUNG_DATA_DIR", DEFAULT_DATA_DIR)).expanduser()
+BACKUP_DIR = Path(os.environ.get("WARTUNG_BACKUP_DIR", DATA_DIR / "backups")).expanduser()
 TEMPLATE_DIR = APP_DIR / "templates"
 STATIC_DIR = APP_DIR / "static"
 
@@ -33,7 +49,7 @@ HOST = os.environ.get("WARTUNG_HOST", os.environ.get("HOST", "0.0.0.0"))
 PORT = int(os.environ.get("WARTUNG_PORT", os.environ.get("PORT", "8080")))
 SSL_CERT = os.environ.get("WARTUNG_SSL_CERT", "").strip()
 SSL_KEY = os.environ.get("WARTUNG_SSL_KEY", "").strip()
-TRUST_PROXY = os.environ.get("WARTUNG_TRUST_PROXY", "0").strip().lower() in {"1", "true", "yes", "on"}
+TRUST_PROXY = _env_bool("WARTUNG_TRUST_PROXY", ON_RAILWAY)
 
 SESSION_COOKIE = "wartung_session"
 AUTH_CSRF_COOKIE = "wartung_auth_csrf"
@@ -42,7 +58,9 @@ PASSWORD_ITERATIONS = 310_000
 STATE_RECENT_LOG_LIMIT = max(100, _env_int("WARTUNG_STATE_RECENT_LOG_LIMIT", 1000))
 STATE_RECENT_NOTE_LIMIT = max(100, _env_int("WARTUNG_STATE_RECENT_NOTE_LIMIT", 500))
 
-PUBLIC_URL = os.environ.get("WARTUNG_PUBLIC_URL", "").strip().rstrip("/")
+RAILWAY_PUBLIC_DOMAIN = os.environ.get("RAILWAY_PUBLIC_DOMAIN", "").strip()
+DEFAULT_PUBLIC_URL = f"https://{RAILWAY_PUBLIC_DOMAIN}" if RAILWAY_PUBLIC_DOMAIN else ""
+PUBLIC_URL = os.environ.get("WARTUNG_PUBLIC_URL", DEFAULT_PUBLIC_URL).strip().rstrip("/")
 SMTP_HOST = os.environ.get("WARTUNG_SMTP_HOST", "").strip()
 SMTP_PORT = _env_int("WARTUNG_SMTP_PORT", 587)
 SMTP_USER = os.environ.get("WARTUNG_SMTP_USER", "").strip()

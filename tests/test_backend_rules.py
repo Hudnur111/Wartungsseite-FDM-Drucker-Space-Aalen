@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 import unittest
 from datetime import date, timedelta
 
@@ -48,6 +51,39 @@ class BackendRuleTests(unittest.TestCase):
 
     def test_proxy_headers_are_not_trusted_by_default(self) -> None:
         self.assertFalse(config.TRUST_PROXY)
+
+    def test_railway_defaults_use_proxy_public_url_and_volume(self) -> None:
+        env = os.environ.copy()
+        for key in list(env):
+            if key.startswith("WARTUNG_") or key.startswith("RAILWAY_"):
+                env.pop(key)
+        env.update(
+            {
+                "RAILWAY_ENVIRONMENT_NAME": "production",
+                "RAILWAY_PUBLIC_DOMAIN": "example.up.railway.app",
+                "RAILWAY_VOLUME_MOUNT_PATH": "/data",
+            }
+        )
+        output = subprocess.check_output(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "from app import config; "
+                    "print(config.TRUST_PROXY); "
+                    "print(config.PUBLIC_URL); "
+                    "print(config.DATA_DIR.as_posix()); "
+                    "print(config.BACKUP_DIR.as_posix()); "
+                    "print(config.DB_PATH.as_posix())"
+                ),
+            ],
+            env=env,
+            text=True,
+        )
+        self.assertEqual(
+            output.strip().splitlines(),
+            ["True", "https://example.up.railway.app", "/data", "/data/backups", "/data/wartung.db"],
+        )
 
     def test_teams_payload_uses_professional_umlauts(self) -> None:
         payload = teams_payload([])

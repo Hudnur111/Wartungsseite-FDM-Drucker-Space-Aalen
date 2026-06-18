@@ -1,2 +1,1 @@
-# Keine externen Python-Abhängigkeiten erforderlich.
-# Die App verwendet nur Bibliotheken aus der Python-Standardbibliothek.
+streamlit>=1.37,<2

@@ -17,6 +17,9 @@ backups/
 # Team code file
 teamleiter_code.txt
 
+# Streamlit local secrets
+.streamlit/secrets.toml
+
 # OS files
 .DS_Store
 Thumbs.db

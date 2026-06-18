@@ -35,7 +35,9 @@ jobs:
             app/validators.py \
             app/maintenance.py \
             app/reports.py \
-            app/server.py
+            app/server.py \
+            app/streamlit_services.py \
+            streamlit_app.py
 
       - name: Run test suite
         run: python -m unittest discover -s tests
